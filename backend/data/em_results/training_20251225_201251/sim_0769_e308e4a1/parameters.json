@@ -1,0 +1,21 @@
+{
+  "geometry": {
+    "length": 0.028674916558373047,
+    "width": 0.043954015213267264,
+    "height": 0.002545506921605037,
+    "feed_x": 0.0031795282614474553,
+    "feed_y": 0.009465864063876282
+  },
+  "substrate": {
+    "relative_permittivity": 4.4,
+    "loss_tangent": 0.02,
+    "substrate_type": "FR4",
+    "thickness": 0.002545506921605037
+  },
+  "feed_type": "INSET",
+  "frequency_band": "2.4GHz",
+  "frequency_range": [
+    2000000000.0,
+    3000000000.0
+  ]
+}

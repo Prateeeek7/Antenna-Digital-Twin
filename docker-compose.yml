@@ -1,0 +1,92 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: antenna_twin
+      POSTGRES_PASSWORD: antenna_twin
+      POSTGRES_DB: antenna_twin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  influxdb:
+    image: influxdb:2.7
+    ports:
+      - "8086:8086"
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: adminpassword
+      DOCKER_INFLUXDB_INIT_ORG: antenna_twin
+      DOCKER_INFLUXDB_INIT_BUCKET: measurements
+    volumes:
+      - influxdb_data:/var/lib/influxdb2
+
+  minio:
+    image: minio/minio:latest
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio_data:/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql://antenna_twin:antenna_twin@postgres:5432/antenna_twin
+      INFLUXDB_URL: http://influxdb:8086
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - influxdb
+      - redis
+    volumes:
+      - ./backend:/app
+      - model_data:/app/models
+      - em_results:/app/data/em_results
+
+volumes:
+  postgres_data:
+  influxdb_data:
+  minio_data:
+  redis_data:
+  model_data:
+  em_results:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

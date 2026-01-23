@@ -1,0 +1,78 @@
+.measurement-upload {
+  padding: 20px;
+}
+
+.upload-form {
+  background: #1C2128;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.file-input-wrapper {
+  margin-bottom: 16px;
+}
+
+.file-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #E6EDF3;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.file-input {
+  width: 100%;
+  padding: 8px;
+  background: #0E1116;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  color: #E6EDF3;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.file-input:hover {
+  border-color: #2F6FED;
+}
+
+.file-info {
+  margin-top: 8px;
+  padding: 8px;
+  background: #0E1116;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  color: #9BA3AF;
+  font-size: 13px;
+}
+
+.upload-actions {
+  margin-top: 20px;
+}
+
+.upload-info {
+  background: #1C2128;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  padding: 20px;
+}
+
+.upload-info ul {
+  margin: 12px 0 0 0;
+  padding-left: 24px;
+  color: #9BA3AF;
+}
+
+.upload-info li {
+  margin-bottom: 8px;
+}
+
+.success-message {
+  background: #1a3a2e;
+  border: 1px solid #3DDC97;
+  color: #3DDC97;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+}

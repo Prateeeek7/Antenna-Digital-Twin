@@ -1,0 +1,75 @@
+.resizable-panel {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.resizable-panel-horizontal {
+  flex-direction: column;
+}
+
+.resizable-panel-vertical {
+  flex-direction: row;
+}
+
+.resize-handle {
+  position: absolute;
+  background-color: transparent;
+  z-index: 100;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+/* Horizontal resize handle (for vertical panels - resize width) */
+.resize-handle-vertical {
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-handle-vertical:hover,
+.resize-handle-vertical.resize-handle-active {
+  background-color: var(--color-action-primary);
+}
+
+/* Vertical resize handles */
+.resize-handle-vertical {
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+}
+
+.resize-handle-vertical:hover,
+.resize-handle-vertical.resize-handle-active {
+  background-color: var(--color-action-primary);
+}
+
+.resize-handle-right {
+  right: 0;
+}
+
+.resize-handle-left {
+  left: 0;
+}
+
+/* Horizontal resize handle (for horizontal panels - resize height) */
+.resize-handle-horizontal {
+  left: 0;
+  right: 0;
+  height: 4px;
+  cursor: row-resize;
+}
+
+.resize-handle-horizontal:hover,
+.resize-handle-horizontal.resize-handle-active {
+  background-color: var(--color-action-primary);
+}
+
+/* Position horizontal resize handle on the top edge */
+.resizable-panel-horizontal .resize-handle-horizontal {
+  top: 0;
+}
+

@@ -1,0 +1,60 @@
+.calibration-panel {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.calibration-form {
+  background: #1C2128;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.calibration-actions {
+  margin-top: 20px;
+}
+
+.calibration-results {
+  background: #1C2128;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.result-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.result-label {
+  color: #9BA3AF;
+  font-size: 13px;
+}
+
+.result-value {
+  color: #E6EDF3;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.calibration-history {
+  margin-top: 24px;
+}
+
+.loading-message,
+.no-data-message {
+  text-align: center;
+  padding: 40px;
+  color: #9BA3AF;
+}

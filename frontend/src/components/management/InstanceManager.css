@@ -1,0 +1,42 @@
+.instance-manager {
+  padding: 20px;
+  height: 100%;
+  overflow-y: auto;
+}
+
+.instance-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.instance-form {
+  background: #1C2128;
+  border: 1px solid #2D3748;
+  border-radius: 4px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.instance-list {
+  margin-top: 24px;
+}
+
+.instance-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.loading-message,
+.no-data-message {
+  text-align: center;
+  padding: 40px;
+  color: #9BA3AF;
+}
