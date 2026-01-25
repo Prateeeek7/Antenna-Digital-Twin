@@ -315,5 +315,5 @@ alembic upgrade head
 
 **Version**: 1.0.0  
 **Last Updated**: January 2026
-** - Pratik Kumar**
+**By**: Pratik Kumar
 
