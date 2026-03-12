@@ -84,7 +84,8 @@ class OpenEMSAdapter(EMSolverInterface):
     def create_simulation_file(
         self,
         parameters: AntennaParameters,
-        output_dir: Path
+        output_dir: Path,
+        **kwargs: Any,
     ) -> Path:
         """
         Create OpenEMS simulation script (Octave/Matlab).
@@ -124,6 +125,9 @@ class OpenEMSAdapter(EMSolverInterface):
         openems_matlab_str = str(openems_matlab.absolute())
         csxcad_matlab = openems_base / "share" / "CSXCAD" / "matlab"
         csxcad_matlab_str = str(csxcad_matlab.absolute()) if csxcad_matlab.exists() else ""
+        # Use subdir for OpenEMS run so we never rmdir the script's cwd (Octave run() sets cwd to script dir)
+        openems_run_dir = (output_dir / "openems_run").as_posix()
+        output_dir_str = output_dir.as_posix()
         
         script = f"""
 % OpenEMS simulation script for microstrip patch antenna
@@ -199,8 +203,8 @@ mesh.y = [-L/2 - 5*unit, linspace(-L/2, L/2, round(L/mesh_resolution) + 1), L/2 
 mesh.z = [0, linspace(0, h, round(h/mesh_resolution) + 1), h + 5*unit];
 CSX = DefineRectGrid(CSX, unit, mesh);
 
-% Run simulation
-Sim_Path = '{output_dir}';
+% Run simulation (use subdir so rmdir never deletes Octave's current directory)
+Sim_Path = '{openems_run_dir}';
 Sim_CSX = 'patch_antenna';
 if exist(Sim_Path, 'dir')
     rmdir(Sim_Path, 's');
@@ -592,8 +596,6 @@ try
                 % Use this S11
                 ref = port.uf.ref;
                 inc = port.uf.inc;
-            else
-                error('Cannot calculate S11: ref/inc are zero, Zin invalid, and port files missing');
             end
         else
             % Normal calculation: S11 = reflected / incident
@@ -631,7 +633,7 @@ catch err
     
     % Save debug info for troubleshooting
     try
-        save('-v7', '{output_dir}/port_debug.mat', 'port', 'freq');
+        save('-v7', '{output_dir_str}/port_debug.mat', 'port', 'freq');
         fprintf(debug_log, '  Saved port structure to port_debug.mat\\n');
     catch save_err
         fprintf(debug_log, '  Failed to save debug file: %s\\n', save_err.message);
@@ -646,7 +648,7 @@ end
 fclose(debug_log);
 
 % Save results (use v7 format for compatibility with scipy)
-save('-v7', '{output_dir}/results.mat', 'freq', 's11', 's11_db', 's11_phase');
+save('-v7', '{output_dir_str}/results.mat', 'freq', 's11', 's11_db', 's11_phase');
 
 % Calculate gain (simplified - full pattern requires far-field calculation)
 % For now, use approximate formula
@@ -661,7 +663,7 @@ results.gain = gain_approx;
 results.efficiency = efficiency_approx;
 
 % Save in v7 format for Python compatibility
-save('-v7', '{output_dir}/results_struct.mat', 'results');
+save('-v7', '{output_dir_str}/results_struct.mat', 'results');
 """
         return script
     
@@ -683,37 +685,16 @@ save('-v7', '{output_dir}/results_struct.mat', 'results');
         if timeout is None:
             timeout = settings.EM_SOLVER_TIMEOUT
         
-        output_dir = simulation_file.parent
+        output_dir = Path(simulation_file.parent)
+        # Run from parent dir so the script can rmdir(Sim_Path) without deleting Octave's cwd
+        run_cwd = output_dir.parent
         start_time = datetime.utcnow()
         
-        # #region agent log
-        import json
-        log_path = Path("/Users/pratikkumar/Desktop/Antenna Digital Twin/.cursor/debug.log")
-        with open(log_path, 'a') as f:
-            json.dump({
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A,B,C",
-                "location": f"{__file__}:{410}",
-                "message": "Starting OpenEMS simulation",
-                "data": {
-                    "output_dir": str(output_dir),
-                    "simulation_file": str(simulation_file),
-                    "timeout": timeout
-                },
-                "timestamp": int(datetime.utcnow().timestamp() * 1000)
-            }, f)
-            f.write('\n')
-        # #endregion
-        
         try:
-            # Run Octave script - use absolute path and proper Octave syntax
             script_path = str(simulation_file.absolute())
-            # Octave run() function needs the file path without quotes in the eval string
-            # or we can use addpath and just the filename
             result = subprocess.run(
                 [self.octave_path, "--no-gui", "--eval", f"run('{script_path}')"],
-                cwd=output_dir,
+                cwd=str(run_cwd),
                 capture_output=True,
                 text=True,
                 timeout=timeout
@@ -721,81 +702,10 @@ save('-v7', '{output_dir}/results_struct.mat', 'results');
             
             execution_time = (datetime.utcnow() - start_time).total_seconds()
             
-            # #region agent log
-            with open(log_path, 'a') as f:
-                json.dump({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "A,B,C",
-                    "location": f"{__file__}:{430}",
-                    "message": "OpenEMS simulation completed",
-                    "data": {
-                        "returncode": result.returncode,
-                        "execution_time": execution_time,
-                        "stdout_length": len(result.stdout),
-                        "stderr_length": len(result.stderr)
-                    },
-                    "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                }, f)
-                f.write('\n')
-            # #endregion
-            
             if result.returncode != 0:
                 raise EMSolverError(
                     f"OpenEMS simulation failed: {result.stderr}"
                 )
-            
-            # #region agent log
-            # Check for debug log file (Hypothesis A, B, C)
-            # The debug log is saved in Sim_Path which is the same as output_dir/data/em_results/training_*/sim_*/
-            debug_log_file = output_dir / "data" / "em_results" / output_dir.name / "debug_log.txt"
-            # Also try direct path in case Sim_Path is different
-            alt_debug_log = output_dir / "debug_log.txt"
-            # Try both possible paths
-            found_debug_log = None
-            if debug_log_file.exists():
-                found_debug_log = debug_log_file
-            elif alt_debug_log.exists():
-                found_debug_log = alt_debug_log
-            else:
-                # Search for debug_log.txt in subdirectories
-                for path in output_dir.rglob("debug_log.txt"):
-                    found_debug_log = path
-                    break
-            
-            if found_debug_log:
-                with open(found_debug_log, 'r') as f:
-                    debug_content = f.read()
-                with open(log_path, 'a') as f:
-                    json.dump({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "A,B,C",
-                        "location": f"{__file__}:{480}",
-                        "message": "Debug log file found",
-                        "data": {
-                            "debug_log_path": str(found_debug_log),
-                            "debug_log_content": debug_content[:2000]  # First 2000 chars
-                        },
-                        "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                    }, f)
-                    f.write('\n')
-            else:
-                with open(log_path, 'a') as f:
-                    json.dump({
-                        "sessionId": "debug-session",
-                        "runId": "run1",
-                        "hypothesisId": "C",
-                        "location": f"{__file__}:{500}",
-                        "message": "Debug log file NOT found",
-                        "data": {
-                            "tried_paths": [str(debug_log_file), str(alt_debug_log)],
-                            "output_dir": str(output_dir)
-                        },
-                        "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                    }, f)
-                    f.write('\n')
-            # #endregion
             
             return {
                 "status": "completed",
@@ -841,45 +751,9 @@ save('-v7', '{output_dir}/results_struct.mat', 'results');
             else:
                 raise EMSolverError("Parameters not provided and not found in results directory")
         
-        # #region agent log
-        import json
-        log_path = Path("/Users/pratikkumar/Desktop/Antenna Digital Twin/.cursor/debug.log")
-        with open(log_path, 'a') as f:
-            json.dump({
-                "sessionId": "debug-session",
-                "runId": "run1",
-                "hypothesisId": "A,B,C,D,E",
-                "location": f"{__file__}:{549}",
-                "message": "Starting parse_results",
-                "data": {
-                    "results_dir": str(results_dir),
-                    "simulation_file": str(simulation_file)
-                },
-                "timestamp": int(datetime.utcnow().timestamp() * 1000)
-            }, f)
-            f.write('\n')
-        # #endregion
-        
         try:
             # Try to load MATLAB/Octave .mat file
             results_file = results_dir / "results_struct.mat"
-            
-            # #region agent log
-            with open(log_path, 'a') as f:
-                json.dump({
-                    "sessionId": "debug-session",
-                    "runId": "run1",
-                    "hypothesisId": "E",
-                    "location": f"{__file__}:{555}",
-                    "message": "Checking results file existence",
-                    "data": {
-                        "results_file": str(results_file),
-                        "exists": results_file.exists()
-                    },
-                    "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                }, f)
-                f.write('\n')
-            # #endregion
             
             if not results_file.exists():
                 # Fallback: try to parse from text output or use defaults
@@ -898,53 +772,12 @@ save('-v7', '{output_dir}/results_struct.mat', 'results');
                     mat_data = scipy.io.loadmat(str(results_file), struct_as_record=False, squeeze_me=True)
                     results = mat_data.get('results', None)
                     
-                    # #region agent log
-                    with open(log_path, 'a') as f:
-                        json.dump({
-                            "sessionId": "debug-session",
-                            "runId": "run1",
-                            "hypothesisId": "E",
-                            "location": f"{__file__}:{580}",
-                            "message": "Loaded MAT file with scipy",
-                            "data": {
-                                "has_results": results is not None,
-                                "mat_keys": list(mat_data.keys()) if mat_data else []
-                            },
-                            "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                        }, f)
-                        f.write('\n')
-                    # #endregion
-                    
                     if results is not None:
                         frequency = results.frequency if hasattr(results, 'frequency') else []
                         s11_magnitude = results.s11_magnitude if hasattr(results, 's11_magnitude') else []
                         s11_phase = results.s11_phase if hasattr(results, 's11_phase') else None
                         gain = results.gain if hasattr(results, 'gain') else 6.6
                         efficiency = results.efficiency if hasattr(results, 'efficiency') else 0.85
-                        
-                        # #region agent log
-                        import numpy as np
-                        s11_mag_arr = np.array(s11_magnitude) if s11_magnitude else np.array([])
-                        nan_count = np.sum(np.isnan(s11_mag_arr)) if s11_mag_arr.size > 0 else 0
-                        with open(log_path, 'a') as f:
-                            json.dump({
-                                "sessionId": "debug-session",
-                                "runId": "run1",
-                                "hypothesisId": "A,B,C,D",
-                                "location": f"{__file__}:{595}",
-                                "message": "Extracted results from MAT file",
-                                "data": {
-                                    "frequency_length": len(frequency) if hasattr(frequency, '__len__') else 0,
-                                    "s11_magnitude_length": len(s11_magnitude) if hasattr(s11_magnitude, '__len__') else 0,
-                                    "s11_magnitude_nan_count": int(nan_count),
-                                    "s11_magnitude_sample": list(s11_mag_arr[:5]) if s11_mag_arr.size > 0 else [],
-                                    "gain": float(gain) if isinstance(gain, (int, float, np.number)) else None,
-                                    "efficiency": float(efficiency) if isinstance(efficiency, (int, float, np.number)) else None
-                                },
-                                "timestamp": int(datetime.utcnow().timestamp() * 1000)
-                            }, f)
-                            f.write('\n')
-                        # #endregion
                     else:
                         raise ValueError("No results in v7 format")
                 except (ValueError, NotImplementedError, TypeError):

@@ -32,7 +32,8 @@ class HFSSAdapter(EMSolverInterface):
     def create_simulation_file(
         self,
         parameters: AntennaParameters,
-        output_dir: Path
+        output_dir: Path,
+        **kwargs: Any,
     ) -> Path:
         """Create HFSS simulation file."""
         raise NotImplementedError("HFSS adapter not yet implemented")

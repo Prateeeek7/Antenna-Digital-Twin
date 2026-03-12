@@ -48,7 +48,18 @@ def _get_session_local():
     if _SessionLocal is None:
         engine = _get_engine()
         _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+        # Ensure tables exist (e.g. when using SQLite fallback)
+        try:
+            from backend.database import models  # noqa: F401 - register tables on Base.metadata
+            Base.metadata.create_all(bind=engine)
+        except Exception:
+            pass
     return _SessionLocal
+
+
+def get_new_session():
+    """Return a new DB session (for background tasks). Caller must close it."""
+    return _get_session_local()()
 
 
 def get_db():

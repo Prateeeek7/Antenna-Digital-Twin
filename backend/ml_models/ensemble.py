@@ -79,9 +79,9 @@ class EnsemblePredictor:
         nn_mean, _ = self.nn_model.predict(parameters, return_std=False)
         
         if self.fusion_method == "weighted_average":
-            # Weighted average: GP for uncertainty, NN for speed
-            # Use GP uncertainty, but blend predictions
-            mean = 0.6 * gp_mean + 0.4 * nn_mean  # Slight bias to GP
+            # GP-only: use GP mean so model output matches OpenEMS-trained surrogate (no NN blend).
+            # This keeps model and OpenEMS results close for designs in the training range.
+            mean = gp_mean
             std = gp_std if gp_std is not None else abs(gp_mean - nn_mean) * 0.5
         
         elif self.fusion_method == "stacking":
@@ -120,16 +120,43 @@ class EnsemblePredictor:
         """
         # Generate frequency array
         f_min, f_max = frequency_range
-        frequency = np.linspace(f_min, f_max, n_points).tolist()
+        freqs = np.linspace(f_min, f_max, n_points)
+        frequency = freqs.tolist()
         
-        # Predict S11 at each frequency (simplified - would use frequency as input)
-        # For now, use single prediction and create frequency response
+        # Predict S11 min (resonance depth) from surrogate (trained on OpenEMS scalars)
         mean, lower, upper = self.predict(parameters)
         
-        # Create S11 curve (simplified - would predict at each frequency)
-        s11_magnitude = [mean] * n_points  # Placeholder
-        s11_lower = [lower] * n_points
-        s11_upper = [upper] * n_points
+        # Shape S11 curve using patch physics: resonant RLC model.
+        # Training data (CSV from OpenEMS) only has S11_min, not full curves, so we synthesize
+        # the curve; only the minimum value is from the surrogate. OpenEMS returns the real curve.
+        c0 = 299792458
+        geom = parameters.geometry
+        sub = parameters.substrate
+        L, W, h = geom.length, geom.width, geom.height
+        er = sub.relative_permittivity
+        er_eff = (er + 1) / 2 + (er - 1) / 2 * (1 + 12 * h / max(W, 1e-6)) ** (-0.5)
+        wh = max(W / max(h, 1e-6), 0.1)
+        delta_L = 0.412 * h * (er_eff + 0.3) / (er_eff - 0.258) * (wh + 0.264) / (wh + 0.8)
+        L_eff = L + 2 * delta_L
+        f_res = c0 / (2 * L_eff * np.sqrt(er_eff))
+        lambda_res = c0 / max(f_res, 1e6)
+        Q = float(np.clip(lambda_res * np.sqrt(er_eff) / (4 * h * np.sqrt(er)), 10, 80))
+        x_norm = (freqs - f_res) / max(f_res, 1e6)
+        # |S11|^2 = (Q*x)^2 / (1 + (Q*x)^2); scale so min equals mean
+        S11_sq = (Q * x_norm) ** 2 / (1 + (Q * x_norm) ** 2)
+        s11_mag = np.sqrt(np.clip(S11_sq, 0, 1))
+        s11_db_raw = 20 * np.log10(np.maximum(s11_mag, 1e-9))
+        s11_db_raw = np.minimum(s11_db_raw, 0)
+        # Shift so minimum equals predicted mean
+        s11_min_raw = float(np.min(s11_db_raw))
+        if s11_min_raw < -1:
+            shift = mean - s11_min_raw
+            s11_magnitude = np.clip(s11_db_raw + shift, -60, 0).tolist()
+        else:
+            s11_magnitude = [mean] * n_points
+        delta_lo, delta_hi = lower - mean, upper - mean
+        s11_lower = np.clip(np.array(s11_magnitude) + delta_lo, -60, 0).tolist()
+        s11_upper = np.clip(np.array(s11_magnitude) + delta_hi, -60, 0).tolist()
         
         # Predict gain and efficiency
         gain_mean, gain_lower, gain_upper = self.predict(parameters)

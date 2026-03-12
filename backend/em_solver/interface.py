@@ -41,15 +41,17 @@ class EMSolverInterface(ABC):
     def create_simulation_file(
         self,
         parameters: AntennaParameters,
-        output_dir: Path
+        output_dir: Path,
+        **kwargs: Any,
     ) -> Path:
         """
         Create solver-specific simulation file.
-        
+
         Args:
             parameters: Antenna parameters
             output_dir: Directory for simulation files
-            
+            **kwargs: Solver-specific options (e.g. fast for OpenEMS)
+
         Returns:
             Path to created simulation file
         """
@@ -102,30 +104,32 @@ class EMSolverInterface(ABC):
         self,
         parameters: AntennaParameters,
         output_dir: Path,
-        timeout: Optional[int] = None
+        timeout: Optional[int] = None,
+        **kwargs: Any,
     ) -> EMSimulationResult:
         """
         Complete simulation workflow: create file, run, parse results.
-        
+
         Args:
             parameters: Antenna parameters
             output_dir: Directory for simulation files and results
             timeout: Maximum execution time in seconds
-            
+            **kwargs: Solver-specific options (e.g. fast=True for OpenEMS)
+
         Returns:
             EMSimulationResult with complete simulation data
         """
         output_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Save parameters to metadata file for later reconstruction
         import json
         params_file = output_dir / "parameters.json"
         with open(params_file, 'w') as f:
             json.dump(parameters.model_dump(), f, indent=2)
-        
-        # Create simulation file
-        sim_file = self.create_simulation_file(parameters, output_dir)
-        
+
+        # Create simulation file (pass through e.g. fast for OpenEMS)
+        sim_file = self.create_simulation_file(parameters, output_dir, **kwargs)
+
         # Run simulation
         sim_metadata = self.run_simulation(sim_file, timeout)
         

@@ -44,8 +44,8 @@ class AutomatedBayesianUpdater:
         """
         # Get database session if not provided
         if db is None:
-            from backend.database.base import SessionLocal
-            db = SessionLocal()
+            from backend.database.base import get_new_session
+            db = get_new_session()
             should_close = True
         else:
             should_close = False

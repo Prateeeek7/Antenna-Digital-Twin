@@ -3,7 +3,7 @@ import { useAntennaStore } from '../../services/state';
 import './ParametersPanel.css';
 
 export const ParametersPanel: React.FC = () => {
-  const { parameters, predictions } = useAntennaStore();
+  const { parameters, predictions, simulationResults } = useAntennaStore();
 
   // Safe defaults with proper structure
   const defaultParams = {
@@ -11,23 +11,27 @@ export const ParametersPanel: React.FC = () => {
     substrate: { substrate_type: 'FR4', relative_permittivity: 4.4, loss_tangent: 0.02 },
   };
 
-  const currentParams = parameters || defaultParams;
-  
-  // Ensure geometry and substrate exist
+  // Prefer last simulation result so panel updates after Design or Designer simulation
+  const currentParams = simulationResults?.antenna_parameters || parameters || defaultParams;
+
   const geometry = currentParams.geometry || defaultParams.geometry;
   const substrate = currentParams.substrate || defaultParams.substrate;
 
-  // Extract confidence information from predictions if available
-  const confidence = predictions
+  // Model / solver info: from last run (simulationResults) or predictions
+  const isSurrogate = simulationResults?.solver_name === 'surrogate';
+  const isOpenEMS = simulationResults?.solver_name && simulationResults.solver_name !== 'surrogate';
+  const source = simulationResults || predictions;
+  const confidence = source
     ? {
-        uncertainty: predictions.gain_confidence_lower && predictions.gain_confidence_upper
-          ? `±${((predictions.gain_confidence_upper - predictions.gain) * 100 / predictions.gain).toFixed(1)}%`
-          : '±2.5%',
+        uncertainty: source.gain_confidence_lower != null && source.gain_confidence_upper != null && source.gain
+          ? `±${((source.gain_confidence_upper - source.gain) * 100 / source.gain).toFixed(1)}%`
+          : (isOpenEMS ? '—' : '±2.5%'),
         status: 'valid',
-        modelName: predictions.model_name || 'default',
-        modelVersion: predictions.model_version || '1.0',
+        modelName: isSurrogate ? (source.metadata?.model_name || source.model_name || 'default') : (isOpenEMS ? 'OpenEMS' : (source.model_name || 'N/A')),
+        modelVersion: source.solver_version || source.model_version || (isOpenEMS ? '—' : '1.0'),
+        label: isOpenEMS ? 'Solver' : 'Model',
       }
-    : { uncertainty: 'N/A', status: 'pending', modelName: 'N/A', modelVersion: 'N/A' };
+    : { uncertainty: 'N/A', status: 'pending', modelName: 'N/A', modelVersion: 'N/A', label: 'Model' };
 
   return (
     <div className="parameters-panel">
@@ -76,7 +80,7 @@ export const ParametersPanel: React.FC = () => {
           <div className="parameters-display">
             <div className="param-row">
               <span className="param-label">Type:</span>
-              <span className="param-value">{substrate.substrate_type}</span>
+              <span className="param-value">{substrate.substrate_type ?? defaultParams.substrate.substrate_type}</span>
             </div>
             <div className="param-row">
               <span className="param-label">εr:</span>
@@ -97,12 +101,12 @@ export const ParametersPanel: React.FC = () => {
           <div className="section-header">Model Info</div>
           <div className="parameters-display">
             <div className="param-row">
-              <span className="param-label">Model:</span>
+              <span className="param-label">{confidence.label}:</span>
               <span className="param-value">{confidence.modelName}</span>
             </div>
             <div className="param-row">
               <span className="param-label">Version:</span>
-              <span className="param-value">v{confidence.modelVersion}</span>
+              <span className="param-value">{confidence.modelVersion === '—' ? '—' : `v${confidence.modelVersion}`}</span>
             </div>
             <div className="param-row">
               <span className="param-label">Uncertainty:</span>
@@ -111,7 +115,7 @@ export const ParametersPanel: React.FC = () => {
             <div className="param-row">
               <span className="param-label">Status:</span>
               <span className={`param-value text-${confidence.status === 'valid' ? 'success' : 'secondary'}`}>
-                {confidence.status === 'valid' ? 'Valid' : 'Pending'}
+                {confidence.status === 'valid' ? (isOpenEMS ? 'Completed' : 'Valid') : 'Pending'}
               </span>
             </div>
           </div>

@@ -17,10 +17,161 @@ from backend.em_solver.batch_runner import BatchRunner
 from backend.rom.doe_generator import DOEGenerator
 from backend.rom.sensitivity_analysis import SensitivityAnalyzer
 from backend.ml_models.training_pipeline import TrainingPipeline
-from backend.core.models.schemas import FrequencyBand, SubstrateType
+from backend.core.models.schemas import (
+    FrequencyBand,
+    SubstrateType,
+    AntennaParameters,
+    AntennaGeometry,
+    SubstrateProperties,
+    EMSimulationResult,
+    S11Data,
+)
 from backend.core.config import settings
 import json
+import uuid
+import csv
 from datetime import datetime
+from typing import Optional
+
+
+def load_training_data_from_csv(
+    csv_path: Path,
+    frequency_range: tuple[float, float] = (2.0e9, 3.0e9),
+) -> tuple[list[AntennaParameters], list[EMSimulationResult]]:
+    """
+    Load training data from Simulation_Data.csv using all design and output columns.
+
+    Design parameters (all used as model inputs):
+      Length, Width, Height (mm), Feed_X_mm, substrate_epsR, substrate_loss_tan.
+    feed_y is set to Width/2 (center); CSV has no Feed_Y column.
+    All lengths in CSV are mm; converted to meters for schemas.
+
+    Output columns used for targets: Gain_dBi, Efficiency, S11_min_dB.
+    Other outputs stored in metadata: S11_max_dB, Resonance_Frequency_GHz,
+    Min_S11_dB, Min_S11_freq_GHz, run_id, Simulation_Method, S11_points.
+    Rows with non-empty "error" are skipped.
+    """
+    parameters = []
+    results = []
+    f_min, f_max = frequency_range
+
+    with open(csv_path, newline="", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            # Skip failed runs if error column is present and non-empty
+            if row.get("error", "").strip():
+                continue
+            try:
+                length_mm = float(row["Length"])
+                width_mm = float(row["Width"])
+                height_mm = float(row["Height"])
+                feed_x_mm = float(row["Feed_X_mm"])
+                eps_r = float(row["substrate_epsR"])
+                loss_tan = float(row["substrate_loss_tan"])
+                gain_dbi = float(row["Gain_dBi"])
+                efficiency = float(row["Efficiency"])
+                s11_min_db = float(row["S11_min_dB"])
+            except (KeyError, ValueError):
+                continue
+
+            # All 6 design parameters from CSV → geometry + substrate (feed_y = Width/2)
+            length_m = length_mm / 1000.0
+            width_m = width_mm / 1000.0
+            height_m = height_mm / 1000.0
+            feed_x_m = (length_mm / 2.0 + feed_x_mm) / 1000.0
+            feed_x_m = max(0.0, min(length_m, feed_x_m))
+            feed_y_m = width_m / 2.0
+
+            geom = AntennaGeometry(
+                length=length_m,
+                width=width_m,
+                height=height_m,
+                feed_x=feed_x_m,
+                feed_y=feed_y_m,
+            )
+            substrate = SubstrateProperties(
+                substrate_type=SubstrateType.FR4,
+                relative_permittivity=eps_r,
+                loss_tangent=loss_tan,
+                thickness=height_m,
+            )
+            params = AntennaParameters(
+                geometry=geom,
+                substrate=substrate,
+                frequency_band=FrequencyBand.BAND_24GHZ,
+                frequency_range=(f_min, f_max),
+            )
+            parameters.append(params)
+
+            # Use all CSV output columns: resonance freq for S11 curve; rest in metadata
+            freq_ghz = float(row.get("Resonance_Frequency_GHz", 2.45))
+            freq_hz = freq_ghz * 1e9
+            s11_data = S11Data(
+                frequency=[f_min, freq_hz, f_max],
+                s11_magnitude=[s11_min_db + 5, s11_min_db, s11_min_db + 5],
+                s11_phase=None,
+            )
+            metadata = {
+                "source": "Simulation_Data.csv",
+                "run_id": row.get("run_id", ""),
+                "S11_max_dB": _safe_float(row, "S11_max_dB"),
+                "Resonance_Frequency_GHz": freq_ghz,
+                "Min_S11_dB": _safe_float(row, "Min_S11_dB"),
+                "Min_S11_freq_GHz": _safe_float(row, "Min_S11_freq_GHz"),
+                "Simulation_Method": row.get("Simulation_Method", ""),
+                "S11_points": row.get("S11_points", ""),
+            }
+            result = EMSimulationResult(
+                simulation_id=str(uuid.uuid4()),
+                antenna_parameters=params,
+                s11=s11_data,
+                gain=gain_dbi,
+                efficiency=efficiency,
+                solver_name="FDTD (CSV)",
+                solver_version="1.0",
+                simulation_time=0.0,
+                metadata=metadata,
+            )
+            results.append(result)
+
+    return parameters, results
+
+
+def _safe_float(row: dict, key: str) -> Optional[float]:
+    """Return row[key] as float or None if missing/invalid."""
+    try:
+        return float(row[key])
+    except (KeyError, ValueError, TypeError):
+        return None
+
+
+def cleanup_previous_data():
+    """Remove all previous EM results and saved surrogate models."""
+    import shutil
+    # Clean EM results: both cwd-relative and backend/data/em_results (repo location)
+    for em_dir in [
+        settings.EM_SOLVER_RESULTS_DIR,
+        Path(__file__).resolve().parent.parent / "data" / "em_results",
+    ]:
+        if em_dir.exists():
+            for p in em_dir.iterdir():
+                if p.is_file():
+                    p.unlink()
+                else:
+                    shutil.rmtree(p, ignore_errors=True)
+            print(f"Cleaned: {em_dir}")
+    # Delete all .pkl models (cwd-relative and backend/models)
+    for model_dir in [
+        settings.ML_MODEL_DIR,
+        Path(__file__).resolve().parent.parent / "models",
+    ]:
+        if model_dir.exists():
+            removed = 0
+            for p in model_dir.glob("*.pkl"):
+                p.unlink()
+                removed += 1
+            if removed:
+                print(f"Removed {removed} previous model(s) from {model_dir}")
 
 
 def generate_training_data(
@@ -261,6 +412,23 @@ def train_models(parameters, results, model_name: str = "default"):
         print(f"  RMSE: {metrics['rmse']:.4f}")
         print(f"  MAE: {metrics['mae']:.4f}")
         print(f"  R²: {metrics['r2']:.4f}")
+
+    # Train accuracy predictor (twin model) on validation split
+    if len(test_params) >= 10:
+        print("\nTraining accuracy predictor (when to run full EM)...")
+        for metric in target_metrics:
+            try:
+                training_pipeline.train_accuracy_predictor(
+                    parameters=test_params,
+                    em_results=test_results,
+                    model_name=model_name,
+                    metric=metric,
+                )
+                print(f"  Trained accuracy predictor for {metric}")
+            except Exception as e:
+                print(f"  Skipped accuracy predictor for {metric}: {e}")
+    else:
+        print("\nSkipping accuracy predictor (need at least 10 validation samples).")
     
     return models
 
@@ -268,7 +436,7 @@ def train_models(parameters, results, model_name: str = "default"):
 def main():
     """Main training workflow."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Train surrogate model for antenna digital twin")
     parser.add_argument("--samples", type=int, default=100, help="Number of training samples")
     parser.add_argument("--solver", type=str, default="openems", help="EM solver name")
@@ -276,40 +444,69 @@ def main():
     parser.add_argument("--model-name", type=str, default="default", help="Model name")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--mock", action="store_true", help="Use mock data (no EM solver required)")
-    
+    parser.add_argument(
+        "--csv",
+        type=str,
+        nargs="?",
+        const="backend/data/Simulation_Data.csv",
+        default=None,
+        metavar="PATH",
+        help="Train from CSV file. If PATH omitted, uses backend/data/Simulation_Data.csv. Cleans previous em_results and models.",
+    )
     args = parser.parse_args()
-    
+
     frequency_band = FrequencyBand.BAND_24GHZ if args.frequency == "2.4ghz" else FrequencyBand.BAND_35GHZ
-    
+    frequency_range = (2.0e9, 3.0e9) if args.frequency == "2.4ghz" else (3.0e9, 4.0e9)
+
     print("=" * 60)
     print("Antenna Digital Twin - Surrogate Model Training")
     print("=" * 60)
-    print(f"Configuration:")
-    print(f"  Samples: {args.samples}")
-    print(f"  Solver: {args.solver}")
-    print(f"  Frequency Band: {args.frequency}")
-    print(f"  Model Name: {args.model_name}")
-    print(f"  Seed: {args.seed}")
-    print(f"  Mock Data: {args.mock}")
-    print("=" * 60)
-    
-    # Generate training data
-    if args.mock:
-        param_gen = ParameterGenerator(frequency_band=frequency_band)
-        doe_gen = DOEGenerator(param_gen)
-        parameters = doe_gen.generate_lhs(args.samples, seed=args.seed)
-        parameters, results = generate_mock_training_data(parameters, frequency_band)
+    if args.csv is not None:
+        csv_input = args.csv or "backend/data/Simulation_Data.csv"
+        print("Mode: CSV (no EM simulation, no radiation/visualization)")
+        print(f"  CSV file: {csv_input}")
+        print(f"  Model name: {args.model_name}")
+        print("=" * 60)
+        # Clean previous data and models
+        cleanup_previous_data()
+        csv_input = args.csv or "backend/data/Simulation_Data.csv"
+        csv_path = Path(csv_input)
+        if not csv_path.is_absolute():
+            # Resolve relative to project root (parent of backend/)
+            root = Path(__file__).resolve().parent.parent.parent
+            csv_path = root / csv_input
+        if not csv_path.exists():
+            raise FileNotFoundError(f"CSV file not found: {csv_path}")
+        parameters, results = load_training_data_from_csv(csv_path, frequency_range=frequency_range)
+        print(f"Loaded {len(parameters)} samples from {csv_path.name}")
+        print("  Inputs: Length, Width, Height, Feed_X_mm, substrate_epsR, substrate_loss_tan (feed_y=Width/2)")
+        print("  Targets: S11_min_dB, Gain_dBi, Efficiency (+ S11_max, Resonance_Freq, etc. in metadata)")
     else:
-        parameters, results = generate_training_data(
-            n_samples=args.samples,
-            solver_name=args.solver,
-            frequency_band=frequency_band,
-            seed=args.seed
-        )
-    
+        print(f"Configuration:")
+        print(f"  Samples: {args.samples}")
+        print(f"  Solver: {args.solver}")
+        print(f"  Frequency Band: {args.frequency}")
+        print(f"  Model Name: {args.model_name}")
+        print(f"  Seed: {args.seed}")
+        print(f"  Mock Data: {args.mock}")
+        print("=" * 60)
+        # Generate training data
+        if args.mock:
+            param_gen = ParameterGenerator(frequency_band=frequency_band)
+            doe_gen = DOEGenerator(param_gen)
+            parameters = doe_gen.generate_lhs(args.samples, seed=args.seed)
+            parameters, results = generate_mock_training_data(parameters, frequency_band)
+        else:
+            parameters, results = generate_training_data(
+                n_samples=args.samples,
+                solver_name=args.solver,
+                frequency_band=frequency_band,
+                seed=args.seed,
+            )
+
     # Train models
     models = train_models(parameters, results, model_name=args.model_name)
-    
+
     print("\n" + "=" * 60)
     print("Training completed successfully!")
     print(f"Models saved to: {settings.ML_MODEL_DIR}")

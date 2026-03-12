@@ -1,7 +1,23 @@
 .s11-plot {
   width: 100%;
   height: 100%;
-  min-height: 400px;
+  min-height: 0;
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  margin: var(--spacing-xs);
+}
+
+.s11-plot .plotly {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 200px;
+}
+
+.s11-plot .js-plotly-plot,
+.s11-plot .plot-container {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 

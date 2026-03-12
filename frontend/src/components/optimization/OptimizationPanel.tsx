@@ -7,7 +7,7 @@ import api from '../../services/api';
 import './OptimizationPanel.css';
 
 export const OptimizationPanel: React.FC = () => {
-  const { parameters, setParameters } = useAntennaStore();
+  const { parameters, setParameters, simulationResults } = useAntennaStore();
   const [objective, setObjective] = useState('minimize_s11');
   const [targetS11, setTargetS11] = useState('-10.0');
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -16,6 +16,11 @@ export const OptimizationPanel: React.FC = () => {
   const [whatIfVariation, setWhatIfVariation] = useState({ length: 0, width: 0 });
   const [whatIfResult, setWhatIfResult] = useState<any>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  // Spectrum matching (UCE-style)
+  const [spectrumOptimizer, setSpectrumOptimizer] = useState<'lbfgs' | 'cem'>('lbfgs');
+  const [isOptimizingSpectrum, setIsOptimizingSpectrum] = useState(false);
+  const [spectrumResult, setSpectrumResult] = useState<any>(null);
 
   const handleOptimize = async () => {
     if (!parameters) {
@@ -45,6 +50,47 @@ export const OptimizationPanel: React.FC = () => {
       console.error('Optimization error:', err);
     } finally {
       setIsOptimizing(false);
+    }
+  };
+
+  const handleOptimizeSpectrum = async () => {
+    if (!parameters) {
+      setError('Please set antenna parameters first');
+      return;
+    }
+    const targetS11Data = simulationResults?.s11;
+    if (!targetS11Data?.frequency?.length || !targetS11Data?.s11_magnitude?.length) {
+      setError('Run a simulation first to use its S11 as target spectrum');
+      return;
+    }
+
+    setIsOptimizingSpectrum(true);
+    setError(null);
+    setSpectrumResult(null);
+    try {
+      const response = await api.post('/optimization/optimize-spectrum', {
+        initial_parameters: parameters,
+        target_spectrum: {
+          frequency_hz: targetS11Data.frequency,
+          s11_magnitude_db: targetS11Data.s11_magnitude,
+        },
+        optimizer: spectrumOptimizer,
+        quantile: 0.9,
+        n_samples: 30,
+        elite_frac: 0.15,
+        n_iterations: 15,
+      });
+
+      const { optimized_parameters, loss_history } = response.data;
+      setSpectrumResult({ optimized_parameters, loss_history });
+      setParameters(optimized_parameters);
+      setError(null);
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.detail || err.message || 'Spectrum optimization failed';
+      setError(`Spectrum optimization: ${errorMessage}`);
+      console.error('Spectrum optimization error:', err);
+    } finally {
+      setIsOptimizingSpectrum(false);
     }
   };
 
@@ -151,6 +197,63 @@ export const OptimizationPanel: React.FC = () => {
               <span className="result-value">
                 {(optimizationResult.optimizedParameters.geometry.width * 1000).toFixed(2)} mm
               </span>
+            </div>
+          )}
+        </div>
+      )}
+
+      <div className="divider" />
+
+      <div className="section-header">Match full S11 spectrum</div>
+      <p className="optimization-hint">
+        Optimize geometry so the predicted S11 curve matches the last simulation result (UCE-style).
+      </p>
+      <div className="input-group">
+        <Select
+          label="Optimizer"
+          options={[
+            { value: 'lbfgs', label: 'L-BFGS-B (gradient-based)' },
+            { value: 'cem', label: 'Cross-Entropy (CEM)' },
+          ]}
+          value={spectrumOptimizer}
+          onChange={(e) => setSpectrumOptimizer(e.target.value as 'lbfgs' | 'cem')}
+        />
+      </div>
+      <div className="optimization-actions">
+        <Button
+          variant="secondary"
+          onClick={handleOptimizeSpectrum}
+          disabled={isOptimizingSpectrum || !parameters || !simulationResults?.s11}
+        >
+          {isOptimizingSpectrum ? 'Optimizing...' : 'Optimize to match spectrum'}
+        </Button>
+      </div>
+      {!simulationResults?.s11 && parameters && (
+        <p className="optimization-hint hint-warning">Run a simulation first to set the target spectrum.</p>
+      )}
+      {spectrumResult && (
+        <div className="optimization-results">
+          <div className="section-header">Spectrum optimization results</div>
+          {spectrumResult.optimized_parameters && (
+            <>
+              <div className="result-item">
+                <span className="result-label">Length:</span>
+                <span className="result-value">
+                  {(spectrumResult.optimized_parameters.geometry.length * 1000).toFixed(2)} mm
+                </span>
+              </div>
+              <div className="result-item">
+                <span className="result-label">Width:</span>
+                <span className="result-value">
+                  {(spectrumResult.optimized_parameters.geometry.width * 1000).toFixed(2)} mm
+                </span>
+              </div>
+            </>
+          )}
+          {spectrumResult.loss_history?.length > 0 && (
+            <div className="result-item">
+              <span className="result-label">CEM iterations:</span>
+              <span className="result-value">{spectrumResult.loss_history.length}</span>
             </div>
           )}
         </div>

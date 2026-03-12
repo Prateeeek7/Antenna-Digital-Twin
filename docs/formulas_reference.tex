@@ -1,0 +1,280 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\geometry{margin=2.5cm}
+\title{Antenna Digital Twin: Formulas and Calculations Reference}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+
+This document lists the formulas used in the Antenna Digital Twin codebase and the purpose of each calculation.
+
+\section{Electromagnetic Solver (Patch Antenna)}
+
+\subsection{Effective Permittivity}
+Used to account for fringing fields in a rectangular patch (Hammerstad-style).
+\begin{equation}
+\varepsilon_{\mathrm{eff}}
+= \frac{\varepsilon_r + 1}{2}
++ \frac{\varepsilon_r - 1}{2}
+\left(1 + \frac{12h}{W}\right)^{-1/2}
+\end{equation}
+\textbf{Used for:} Resonance frequency and quality factor. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Effective Length (Fringing Extension)}
+Extension of patch length due to fringing (effective length correction).
+\begin{equation}
+\Delta L = 0.412\, h\,
+\frac{\varepsilon_{\mathrm{eff}} + 0.3}{\varepsilon_{\mathrm{eff}} - 0.258}\,
+\frac{W/h + 0.264}{W/h + 0.8}
+\end{equation}
+\begin{equation}
+L_{\mathrm{eff}} = L + 2\Delta L
+\end{equation}
+\textbf{Used for:} Resonance frequency \(f_{\mathrm{res}}\). \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Resonance Frequency}
+Cavity-model resonance for a rectangular patch.
+\begin{equation}
+f_{\mathrm{res}} = \frac{c_0}{2\, L_{\mathrm{eff}}\, \sqrt{\varepsilon_{\mathrm{eff}}}}
+\end{equation}
+with \(c_0 = 299792458\;\mathrm{m/s}\). \\
+\textbf{Used for:} Center frequency of S11 response and normalized frequency variable. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Quality Factor (Patch Q)}
+Thin-patch cavity / Wheeler-style Q for bandwidth.
+\begin{equation}
+Q_{\mathrm{patch}} = \frac{\lambda_{\mathrm{res}}\, \sqrt{\varepsilon_{\mathrm{eff}}}}{4\, h\, \sqrt{\varepsilon_r}}
+\end{equation}
+with \(\lambda_{\mathrm{res}} = c_0 / f_{\mathrm{res}}\). Clipped to \([10, 80]\) in code. \\
+\textbf{Used for:} S11 magnitude and phase shape; fractional bandwidth \(\approx 0.667/Q\). \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Normalized Frequency}
+\begin{equation}
+x = \frac{f - f_{\mathrm{res}}}{f_{\mathrm{res}}}
+\end{equation}
+\textbf{Used for:} Resonant S11 model (RLC-like response).
+
+\subsection{S11 Magnitude (Resonant Model)}
+Single-resonance RLC-like model for \(|S_{11}|^2\):
+\begin{equation}
+|S_{11}|^2 = \frac{(Q_{\mathrm{patch}}\, x)^2}{1 + (Q_{\mathrm{patch}}\, x)^2}
+\end{equation}
+\begin{equation}
+|S_{11}| = \sqrt{\max(0,\, \min(1,\, |S_{11}|^2))}
+\end{equation}
+\textbf{Used for:} S11 magnitude vs frequency when using geometry-based approximation. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{S11 Phase}
+\begin{equation}
+\angle S_{11} = -\frac{180}{\pi}\,\arctan(Q_{\mathrm{patch}}\, x,\, 1)
+\end{equation}
+(Phase in degrees; \texttt{arctan2} convention.) \\
+\textbf{Used for:} Complex \(S_{11}\) and input impedance.
+
+\subsection{S11 in Decibels}
+\begin{equation}
+S_{11,\mathrm{dB}} = 20\,\log_{10}(\max(|S_{11}|,\, 10^{-9})),\qquad S_{11,\mathrm{dB}} \leq 0\;\mathrm{dB}
+\end{equation}
+\textbf{Used for:} S11 magnitude in dB for plots and metrics (e.g.\ S11 min, bandwidth).
+
+\subsection{Input Impedance from S11}
+Reference impedance \(Z_0 = 50\;\Omega\):
+\begin{equation}
+Z_{\mathrm{in}} = Z_0\, \frac{1 + S_{11}}{1 - S_{11}}
+\end{equation}
+\textbf{Used for:} Logging and consistency; \(S_{11}\) is complex here. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Aperture Directivity}
+Physical optics-style aperture directivity for a rectangular patch:
+\begin{equation}
+D_{\mathrm{aperture}} = \frac{4\pi\, L\, W}{\lambda_0^2}
+\end{equation}
+with \(\lambda_0 = c_0 / f_0\). \\
+\textbf{Used for:} Base directivity before geometry factor. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Directivity (with Geometry Factor)}
+\begin{equation}
+D_{\mathrm{linear}} = \max\bigl(D_{\mathrm{aperture}}\, (2 + \min(W/L,\, 1)),\; 1\bigr)
+\end{equation}
+\textbf{Used for:} Linear directivity before efficiency. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Power Transmitted (from S11)}
+\begin{equation}
+P_{\mathrm{transmitted}} = 1 - 10^{S_{11,\mathrm{min,dB}}/10}
+\end{equation}
+\textbf{Used for:} Fraction of power accepted by the antenna (mismatch). \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Substrate Loss (Dielectric)}
+Exponential attenuation in substrate:
+\begin{equation}
+\eta_{\mathrm{substrate}} = 1 - \exp\left(-\frac{2\pi f_0\, \tan\delta\, h\, \sqrt{\varepsilon_r}}{c_0}\right)
+\end{equation}
+\textbf{Used for:} Efficiency reduction due to dielectric loss. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Radiation Efficiency}
+\begin{equation}
+\eta = P_{\mathrm{transmitted}}\, (1 - \eta_{\mathrm{substrate}})
+\end{equation}
+Optionally reduced by feed-offset factor; then clipped to \([0, 1]\). \\
+\textbf{Used for:} Efficiency field in \texttt{EMSimulationResult}. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Gain (dBi)}
+\begin{equation}
+G_{\mathrm{linear}} = D_{\mathrm{linear}}\, \eta,\qquad
+G_{\mathrm{dBi}} = 10\,\log_{10}(\max(G_{\mathrm{linear}},\, 10^{-6}))
+\end{equation}
+\textbf{Used for:} Peak gain in dBi in simulation results. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/meep\_adapter.py}
+
+\subsection{Substrate Conductivity (OpenEMS)}
+Equivalent conductivity for lossy substrate in FDTD:
+\begin{equation}
+\kappa = \tan\delta \cdot 2\pi f_0\, \varepsilon_0\, \varepsilon_r
+\end{equation}
+\textbf{Used for:} \texttt{Kappa} of substrate material in OpenEMS. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/openems\_adapter.py}
+
+\subsection{Mesh Resolution (OpenEMS)}
+\begin{equation}
+\Delta_{\mathrm{mesh}} = \frac{c_0}{f_0 \cdot 20}
+\end{equation}
+(20 cells per wavelength at \(f_0\).) \\
+\textbf{Used for:} Grid spacing in OpenEMS FDTD. \\
+\textbf{Location:} \texttt{backend/em\_solver/adapters/openems\_adapter.py}
+
+%------------------------------------------------------------------------------
+\section{Propagation and Coverage}
+
+\subsection{Free-Space Path Loss}
+\begin{equation}
+L_{\mathrm{path}} = 20\,\log_{10}\left(\frac{4\pi d}{\lambda}\right)
+\end{equation}
+with \(\lambda = c / f\), \(d\) in m, \(f\) in Hz. \\
+\textbf{Used for:} Path loss in dB for coverage and link budget. \\
+\textbf{Location:} \texttt{backend/environment/propagation.py}
+
+\subsection{Indoor / Outdoor Offsets}
+Indoor: \(L_{\mathrm{path}} + 20\;\mathrm{dB}\); outdoor: \(L_{\mathrm{path}} + 10\;\mathrm{dB}\). \\
+\textbf{Used for:} Simple environment-dependent path loss. \\
+\textbf{Location:} \texttt{backend/environment/propagation.py}
+
+\subsection{Effective Gain and Coverage}
+\begin{equation}
+G_{\mathrm{eff}} = G_{\max} - L_{\mathrm{path}}
+\end{equation}
+Coverage: probability 1 if \(G_{\mathrm{eff}} > G_{\mathrm{threshold}}\), else 0. \\
+\textbf{Used for:} Coverage probability and effective gain. \\
+\textbf{Location:} \texttt{backend/environment/coverage.py}
+
+%------------------------------------------------------------------------------
+\section{ROM, Sensitivity, and Error Bounds}
+
+\subsection{Parameter and Output Normalization}
+Z-score normalization:
+\begin{equation}
+x_{\mathrm{norm}} = \frac{x - \bar{x}}{\sigma_x + 10^{-10}},\qquad
+y_{\mathrm{norm}} = \frac{y - \bar{y}}{\sigma_y + 10^{-10}}
+\end{equation}
+\textbf{Used for:} Sensitivity analysis (Sobol proxy) and scaling. \\
+\textbf{Location:} \texttt{backend/rom/sensitivity\_analysis.py}
+
+\subsection{Sobol Indices (Correlation-Based Proxy)}
+First-order sensitivity proxy using Pearson correlation:
+\begin{equation}
+S_i \propto \bigl| \rho(x_{\mathrm{norm},i},\, y_{\mathrm{norm}}) \bigr|
+\end{equation}
+Normalized so that \(\sum_i S_i = 1\). \\
+\textbf{Used for:} Parameter ranking for ROM construction. \\
+\textbf{Location:} \texttt{backend/rom/sensitivity\_analysis.py}
+
+\subsection{Prediction Intervals (Error-Based)}
+Errors \(e = y_{\mathrm{true}} - y_{\mathrm{pred}}\); interval using mean and std of \(e\) and normal quantile \(z\):
+\begin{equation}
+\bigl[\, y_{\mathrm{pred}} - \bar{e} - z\, \sigma_e,\;
+y_{\mathrm{pred}} - \bar{e} + z\, \sigma_e\,\bigr]
+\end{equation}
+with \(z = \Phi^{-1}((1 + \mathrm{confidence})/2)\). \\
+\textbf{Used for:} Confidence bounds on ROM predictions. \\
+\textbf{Location:} \texttt{backend/rom/error\_bounds.py}
+
+\subsection{Per-Metric Error Statistics}
+\begin{align}
+\mathrm{MAE} &= \frac{1}{n}\sum |e_i| \\
+\mathrm{RelErr} &= \frac{|e_i|}{|y_{\mathrm{true},i}| + 10^{-10}} \\
+\mathrm{RMSE} &= \sqrt{\frac{1}{n}\sum e_i^2} \\
+\mathrm{MaxError} &= \max_i |e_i|
+\end{align}
+Percentiles (e.g.\ 95th, 99th) of \(|e_i|\) are also computed. \\
+\textbf{Used for:} Error bounds per metric (s11\_min, gain, efficiency). \\
+\textbf{Location:} \texttt{backend/rom/error\_bounds.py}
+
+\subsection{Uncertainty Growth with Distance}
+Exponential growth of uncertainty with distance from training data:
+\begin{equation}
+u(d) = u_0\, \bigl(1 + 0.1\, d\bigr)
+\end{equation}
+\textbf{Used for:} Uncertainty quantification when extrapolating. \\
+\textbf{Location:} \texttt{backend/rom/error\_bounds.py}
+
+%------------------------------------------------------------------------------
+\section{ML Training and Evaluation}
+
+\subsection{MSE, MAE, RMSE, R²}
+\begin{equation}
+\mathrm{MSE} = \frac{1}{n}\sum (y_i - \hat{y}_i)^2,\quad
+\mathrm{MAE} = \frac{1}{n}\sum |y_i - \hat{y}_i|,\quad
+\mathrm{RMSE} = \sqrt{\mathrm{MSE}}
+\end{equation}
+\begin{equation}
+R^2 = 1 - \frac{\sum (y_i - \hat{y}_i)^2}{\sum (y_i - \bar{y})^2}
+\end{equation}
+\textbf{Used for:} Model evaluation (s11\_min, gain, efficiency). \\
+\textbf{Location:} \texttt{backend/ml\_models/training\_pipeline.py}
+
+\subsection{Gaussian Process (Surrogate)}
+Mean: constant; kernel: scaled Matérn (\(\nu = 2.5\)). \\
+\textbf{Used for:} Surrogate model with uncertainty (mean and variance per output). \\
+\textbf{Location:} \texttt{backend/ml\_models/gaussian\_process.py}
+
+%------------------------------------------------------------------------------
+\section{Summary Table}
+
+\begin{center}
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Quantity} & \textbf{Formula (summary)} & \textbf{Purpose} \\
+\midrule
+\(\varepsilon_{\mathrm{eff}}\) & Eq.\ (1) & Fringing; \(f_{\mathrm{res}}\), \(Q\) \\
+\(\Delta L\), \(L_{\mathrm{eff}}\) & Eq.\ (2)--(3) & Resonance length \\
+\(f_{\mathrm{res}}\) & Eq.\ (4) & S11 center frequency \\
+\(Q_{\mathrm{patch}}\) & Eq.\ (5) & S11 bandwidth and shape \\
+\(|S_{11}|\), \(S_{11,\mathrm{dB}}\) & Eq.\ (7)--(9) & Return loss \\
+\(Z_{\mathrm{in}}\) & Eq.\ (10) & Input impedance \\
+\(D\), \(\eta\), \(G_{\mathrm{dBi}}\) & Eq.\ (11)--(15) & Gain and efficiency \\
+\(L_{\mathrm{path}}\) & Eq.\ (16) & Path loss (propagation) \\
+\(G_{\mathrm{eff}}\) & Eq.\ (18) & Coverage / link budget \\
+Sobol / MAE / RMSE / R² & §3--4 & Sensitivity and ROM error \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}

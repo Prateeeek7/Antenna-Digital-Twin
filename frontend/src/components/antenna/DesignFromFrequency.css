@@ -1,0 +1,142 @@
+.design-from-freq {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: var(--spacing-lg);
+  height: 100%;
+  overflow: hidden;
+}
+
+.design-from-freq-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) 0;
+}
+
+.design-from-freq-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.design-from-freq-inputs label {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+}
+
+.design-from-freq-inputs label span {
+  flex: 0 0 52px;
+}
+
+.design-from-freq-inputs input {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 8px;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  color: var(--color-text-primary);
+  font-size: 13px;
+}
+
+.design-from-freq-inputs input:focus {
+  outline: none;
+  border-color: var(--color-action-primary);
+}
+
+.design-from-freq-error {
+  font-size: 12px;
+  color: var(--color-signal-critical);
+}
+
+.design-from-freq-result-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-default);
+  border-radius: 6px;
+}
+
+.design-from-freq-result-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.design-from-freq-result-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+}
+
+.design-from-freq-result-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-xs);
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.design-from-freq-result-grid var {
+  font-style: normal;
+  color: var(--color-action-secondary);
+  margin-right: 4px;
+}
+
+.design-from-freq-result-value {
+  font-size: 13px;
+  font-family: var(--font-mono, monospace);
+  color: var(--color-text-primary);
+}
+
+.design-from-freq-result-fres {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-signal-success);
+}
+
+.design-from-freq-result-saved {
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-signal-success);
+}
+
+.design-from-freq-view {
+  min-height: 0;
+  background: var(--color-bg-panel);
+  border: 1px solid var(--color-border-default);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.design-from-freq-3d-wrap {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.design-from-freq-scale {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.design-from-freq-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  min-height: 280px;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}

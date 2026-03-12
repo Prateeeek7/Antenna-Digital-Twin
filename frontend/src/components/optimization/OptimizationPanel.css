@@ -51,6 +51,16 @@
   margin-top: var(--spacing-md);
 }
 
+.optimization-hint {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: var(--spacing-sm) 0;
+}
+
+.optimization-hint.hint-warning {
+  color: var(--color-warning, #b8860b);
+}
+
 
 
 

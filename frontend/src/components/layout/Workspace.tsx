@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { AntennaDesigner } from '../antenna/AntennaDesigner';
+import { DesignFromFrequency } from '../antenna/DesignFromFrequency';
 import { S11Plot } from '../visualization/S11Plot';
 import { ResultsViewer } from '../results/ResultsViewer';
 import { OptimizationPanel } from '../optimization/OptimizationPanel';
@@ -10,13 +11,14 @@ import { MeasurementList } from '../measurement/MeasurementList';
 import { CalibrationPanel } from '../calibration/CalibrationPanel';
 import './Workspace.css';
 
-type WorkspaceTab = 'designer' | 'results' | 'optimization' | 'validation' | 'instances' | 'measurements' | 'calibration';
+type WorkspaceTab = 'designer' | 'design' | 'results' | 'optimization' | 'validation' | 'instances' | 'measurements' | 'calibration';
 
 export const Workspace: React.FC = () => {
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('designer');
 
   const tabs: Array<{ id: WorkspaceTab; label: string }> = [
     { id: 'designer', label: 'Designer' },
+    { id: 'design', label: 'Design' },
     { id: 'results', label: 'Results' },
     { id: 'optimization', label: 'Optimization' },
     { id: 'validation', label: 'Validation' },
@@ -40,6 +42,7 @@ export const Workspace: React.FC = () => {
       </div>
       <div className="workspace-content">
         {activeTab === 'designer' && <AntennaDesigner />}
+        {activeTab === 'design' && <DesignFromFrequency />}
         {activeTab === 'results' && <ResultsViewer />}
         {activeTab === 'optimization' && <OptimizationPanel />}
         {activeTab === 'validation' && <ValidationDashboard />}

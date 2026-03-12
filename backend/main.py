@@ -47,6 +47,12 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    """Health check endpoint."""
+    """Health check endpoint (root)."""
+    return {"status": "healthy"}
+
+
+@app.get(f"{settings.API_V1_PREFIX}/health")
+async def health_check_v1():
+    """Health check under API prefix (for frontend using same base URL as other API calls)."""
     return {"status": "healthy"}
 

@@ -1,6 +1,7 @@
 .status-bar {
   display: flex;
   flex-direction: column;
+  flex-shrink: 0;
   background-color: var(--color-bg-panel);
   border-top: 1px solid var(--color-border-divider);
   width: 100%;
@@ -102,6 +103,87 @@
 
 .status-indicator.error {
   background-color: var(--color-signal-critical);
+}
+
+/* Calculation details panel */
+.status-bar-calculation {
+  max-height: 220px;
+  overflow-y: auto;
+  padding: var(--spacing-md);
+  background-color: var(--color-bg-main);
+  border-top: 1px solid var(--color-border-divider);
+  font-size: 12px;
+}
+
+.calc-placeholder {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.calc-title {
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  color: var(--color-text-primary);
+}
+
+.calc-section {
+  margin-bottom: var(--spacing-sm);
+}
+
+.calc-section-head {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.calc-kv {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+.calc-row {
+  color: var(--color-text-primary);
+}
+
+.calc-row .katex-inline {
+  font-size: 1em;
+}
+
+.calc-steps {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-xs);
+}
+
+.calc-step {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--color-border-divider);
+}
+
+.calc-step:last-child {
+  border-bottom: none;
+}
+
+.calc-step-formula {
+  margin-bottom: 2px;
+}
+
+.calc-step-formula .katex-display {
+  margin: 0;
+  font-size: 0.95em;
+}
+
+.calc-step-result {
+  color: var(--color-text-primary);
+  font-family: var(--font-mono);
+}
+
+.calc-step-result .katex-inline {
+  font-size: 1em;
 }
 
 

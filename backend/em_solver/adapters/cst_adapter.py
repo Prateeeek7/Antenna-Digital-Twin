@@ -32,7 +32,8 @@ class CSTAdapter(EMSolverInterface):
     def create_simulation_file(
         self,
         parameters: AntennaParameters,
-        output_dir: Path
+        output_dir: Path,
+        **kwargs: Any,
     ) -> Path:
         """Create CST simulation file."""
         raise NotImplementedError("CST adapter not yet implemented")

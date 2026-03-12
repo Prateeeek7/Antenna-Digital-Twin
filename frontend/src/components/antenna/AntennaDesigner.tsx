@@ -24,35 +24,40 @@ interface ValidationError {
   message: string;
 }
 
+// Defaults within model training range: L 30–35 mm, W 26–31 mm, H 1.2–2 mm, Feed X −7 to −3 mm, εr 3.8–4.6, tan δ 0–0.02
+const DEFAULT_PARAMS: AntennaParams = {
+  length: 32.5,
+  width: 28.5,
+  height: 1.6,
+  feedX: -5.0,
+  feedY: 0.0,
+  substrateType: 'fr4',
+  permittivity: 4.4,
+  lossTangent: 0.02,
+  frequencyBand: '2.4ghz',
+};
+
 export const AntennaDesigner: React.FC = () => {
-  const [params, setParams] = useState<AntennaParams>({
-    length: 30.0,
-    width: 40.0,
-    height: 1.6,
-    feedX: 15.0,
-    feedY: 20.0,
-    substrateType: 'fr4',
-    permittivity: 4.4,
-    lossTangent: 0.02,
-    frequencyBand: '2.4ghz',
-  });
+  const [params, setParams] = useState<AntennaParams>(DEFAULT_PARAMS);
 
   const [isSimulating, setIsSimulating] = useState(false);
-  const [isPredicting, setIsPredicting] = useState(false);
-  const [s11Data, setS11Data] = useState<{ frequency: number[]; s11Magnitude: number[] } | null>(null);
+  const [isRunningOpenEMS, setIsRunningOpenEMS] = useState(false);
+  const [s11Data, setS11Data] = useState<{ frequency: number[]; s11Magnitude: number[]; resonanceFrequencyGHz?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
-  const { setParameters, setPredictions, setSimulationResults } = useAntennaStore();
+  const { setParameters, setSimulationResults } = useAntennaStore();
 
-  // Sync params to store when they change
+  // Sync params to store: convert feed offset (mm) to absolute position (m)
   useEffect(() => {
+    const feedXAbsMm = Math.max(0, Math.min(params.length, params.length / 2 + params.feedX));
+    const feedYAbsMm = Math.max(0, Math.min(params.width, params.width / 2 + params.feedY));
     const antennaParams = {
       geometry: {
         length: params.length / 1000, // mm to m
         width: params.width / 1000,
         height: params.height / 1000,
-        feed_x: params.feedX / 1000,
-        feed_y: params.feedY / 1000,
+        feed_x: feedXAbsMm / 1000,
+        feed_y: feedYAbsMm / 1000,
       },
       substrate: {
         substrate_type: params.substrateType.toUpperCase(),
@@ -79,11 +84,13 @@ export const AntennaDesigner: React.FC = () => {
     if (params.height <= 0 || params.height > 10) {
       errors.push({ field: 'height', message: 'Height must be between 0.1 and 10 mm' });
     }
-    if (params.feedX < 0 || params.feedX > params.length) {
-      errors.push({ field: 'feedX', message: `Feed X must be between 0 and ${params.length.toFixed(2)} mm` });
+    const feedXAbs = params.length / 2 + params.feedX;
+    const feedYAbs = params.width / 2 + params.feedY;
+    if (feedXAbs < 0 || feedXAbs > params.length) {
+      errors.push({ field: 'feedX', message: `Feed X offset: keep on patch (−${(params.length / 2).toFixed(0)} to +${(params.length / 2).toFixed(0)} mm). Training: −7 to −3 mm` });
     }
-    if (params.feedY < 0 || params.feedY > params.width) {
-      errors.push({ field: 'feedY', message: `Feed Y must be between 0 and ${params.width.toFixed(2)} mm` });
+    if (feedYAbs < 0 || feedYAbs > params.width) {
+      errors.push({ field: 'feedY', message: `Feed Y offset: keep on patch (−${(params.width / 2).toFixed(0)} to +${(params.width / 2).toFixed(0)} mm)` });
     }
     if (params.permittivity < 1.0 || params.permittivity > 20.0) {
       errors.push({ field: 'permittivity', message: 'Relative permittivity must be between 1.0 and 20.0' });
@@ -126,13 +133,15 @@ export const AntennaDesigner: React.FC = () => {
     setIsSimulating(true);
     setValidationErrors([]);
     try {
+      const feedXAbsMm = Math.max(0, Math.min(params.length, params.length / 2 + params.feedX));
+      const feedYAbsMm = Math.max(0, Math.min(params.width, params.width / 2 + params.feedY));
       const antennaParams = {
         geometry: {
-          length: params.length / 1000, // mm to m
+          length: params.length / 1000,
           width: params.width / 1000,
           height: params.height / 1000,
-          feed_x: params.feedX / 1000,
-          feed_y: params.feedY / 1000,
+          feed_x: feedXAbsMm / 1000,
+          feed_y: feedYAbsMm / 1000,
         },
         substrate: {
           substrate_type: params.substrateType.toUpperCase(),
@@ -145,19 +154,23 @@ export const AntennaDesigner: React.FC = () => {
         frequency_range: params.frequencyBand === '2.4ghz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
       };
 
+      // Use surrogate model by default (fast). For full EM use solver_name: 'openems'.
       const response = await api.post('/em/simulate', antennaParams, {
-        params: { solver_name: 'meep' },
+        params: { solver_name: 'surrogate' },
+        timeout: 60000, // 1 min for model; use 300000 if using openems
       });
       
-      console.log('Simulation response:', response.data);
       
       if (response.data && response.data.s11) {
+        const freqGHz = response.data.s11.frequency.map((f: number) => f / 1e9);
+        const mag = response.data.s11.s11_magnitude;
+        const resHz = response.data.metadata?.resonance_frequency;
         setS11Data({
-          frequency: response.data.s11.frequency.map((f: number) => f / 1e9), // Hz to GHz
-          s11Magnitude: response.data.s11.s11_magnitude,
+          frequency: freqGHz,
+          s11Magnitude: mag,
+          resonanceFrequencyGHz: resHz != null ? resHz / 1e9 : undefined,
         });
-        setParameters(antennaParams);
-        // Store full simulation results including gain, efficiency, solver info, etc.
+        setParameters(response.data.antenna_parameters || antennaParams);
         setSimulationResults(response.data);
         setError(null);
       } else {
@@ -173,7 +186,7 @@ export const AntennaDesigner: React.FC = () => {
     }
   };
 
-  const handleGetPrediction = async () => {
+  const handleRunOpenEMS = async () => {
     setError(null);
     const errors = validateParameters();
     if (errors.length > 0) {
@@ -181,17 +194,18 @@ export const AntennaDesigner: React.FC = () => {
       setError(`Validation failed: ${errors.map((e) => e.message).join(', ')}`);
       return;
     }
-
-    setIsPredicting(true);
+    setIsRunningOpenEMS(true);
     setValidationErrors([]);
     try {
+      const feedXAbsMm = Math.max(0, Math.min(params.length, params.length / 2 + params.feedX));
+      const feedYAbsMm = Math.max(0, Math.min(params.width, params.width / 2 + params.feedY));
       const antennaParams = {
         geometry: {
           length: params.length / 1000,
           width: params.width / 1000,
           height: params.height / 1000,
-          feed_x: params.feedX / 1000,
-          feed_y: params.feedY / 1000,
+          feed_x: feedXAbsMm / 1000,
+          feed_y: feedYAbsMm / 1000,
         },
         substrate: {
           substrate_type: params.substrateType.toUpperCase(),
@@ -203,29 +217,31 @@ export const AntennaDesigner: React.FC = () => {
         frequency_band: params.frequencyBand === '2.4ghz' ? '2.4GHz' : '3.5GHz',
         frequency_range: params.frequencyBand === '2.4ghz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
       };
-
-      const response = await api.post('/predictions/predict', antennaParams);
-      
-      console.log('Prediction response:', response.data);
-      
+      const response = await api.post('/em/simulate', antennaParams, {
+        params: { solver_name: 'openems', fast: false },
+        timeout: 300000, // 5 min for full FDTD
+      });
       if (response.data && response.data.s11) {
+        const freqGHz = response.data.s11.frequency.map((f: number) => f / 1e9);
+        const mag = response.data.s11.s11_magnitude;
+        const resHz = response.data.metadata?.resonance_frequency;
         setS11Data({
-          frequency: response.data.s11.frequency.map((f: number) => f / 1e9),
-          s11Magnitude: response.data.s11.s11_magnitude,
+          frequency: freqGHz,
+          s11Magnitude: mag,
+          resonanceFrequencyGHz: resHz != null ? resHz / 1e9 : undefined,
         });
-        // Store full prediction results including gain, efficiency, confidence intervals, model info, etc.
-        setPredictions(response.data);
+        setParameters(response.data.antenna_parameters || antennaParams);
+        setSimulationResults(response.data);
         setError(null);
       } else {
-        console.error('Invalid prediction response:', response.data);
-        throw new Error('Invalid response format from prediction service');
+        throw new Error('Invalid response format from OpenEMS simulation');
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Prediction failed. Please check your parameters and try again.';
-      setError(`Prediction Error: ${errorMessage}`);
-      console.error('Prediction error:', err);
+      const msg = err.response?.data?.detail || err.message || 'OpenEMS simulation failed.';
+      setError(`OpenEMS: ${msg}`);
+      console.error('OpenEMS error:', err);
     } finally {
-      setIsPredicting(false);
+      setIsRunningOpenEMS(false);
     }
   };
 
@@ -278,24 +294,28 @@ export const AntennaDesigner: React.FC = () => {
             step="0.01"
           />
           <Input
-            label="Feed X"
+            label="Feed X offset"
             type="number"
             unit="mm"
             value={params.feedX.toString()}
             onChange={handleNumberInputChange('feedX')}
             error={getFieldError('feedX')}
-            min="0"
+            min="-20"
+            max="20"
             step="0.1"
+            title="Offset from patch center. Training range: −7 to −3 mm"
           />
           <Input
-            label="Feed Y"
+            label="Feed Y offset"
             type="number"
             unit="mm"
             value={params.feedY.toString()}
             onChange={handleNumberInputChange('feedY')}
             error={getFieldError('feedY')}
-            min="0"
+            min="-20"
+            max="20"
             step="0.1"
+            title="Offset from patch center (0 = center)"
           />
         </div>
 
@@ -359,7 +379,17 @@ export const AntennaDesigner: React.FC = () => {
               { value: '3.5ghz', label: '3.5 GHz' },
             ]}
             value={params.frequencyBand}
-            onChange={(e) => handleParamChange('frequencyBand', e.target.value)}
+            onChange={(e) => {
+              const band = e.target.value as '2.4ghz' | '3.5ghz';
+              setParams((prev) => ({
+                ...prev,
+                frequencyBand: band,
+                length: band === '2.4ghz' ? 29.0 : 21.0,
+                width: band === '2.4ghz' ? 36.0 : 26.0,
+                feedX: band === '2.4ghz' ? -5.0 : -3.0,  // offset from center (training range −7 to −3)
+                feedY: 0.0,
+              }));
+            }}
           />
         </div>
 
@@ -367,18 +397,21 @@ export const AntennaDesigner: React.FC = () => {
           <Button
             variant="primary"
             onClick={handleRunSimulation}
-            disabled={isSimulating || isPredicting}
+            disabled={isSimulating || isRunningOpenEMS}
           >
-            {isSimulating ? 'Running Simulation...' : 'Run Simulation'}
+            {isSimulating ? 'Running…' : 'Get result (model)'}
           </Button>
           <Button
             variant="secondary"
-            onClick={handleGetPrediction}
-            disabled={isSimulating || isPredicting}
+            onClick={handleRunOpenEMS}
+            disabled={isSimulating || isRunningOpenEMS}
           >
-            {isPredicting ? 'Computing Prediction...' : 'Get Prediction'}
+            {isRunningOpenEMS ? 'OpenEMS running…' : 'Run with OpenEMS'}
           </Button>
         </div>
+        <p className="result-comparison-note" style={{ fontSize: '12px', color: 'var(--color-text-secondary, #666)', marginTop: '8px', maxWidth: '520px' }}>
+          Model is for <strong>2.4&#8203;GHz</strong> band. Trained on 1200 OpenEMS runs. Reliable within: L 30–35&#8203;mm, W 26–31&#8203;mm, H 1.2–2&#8203;mm, Feed X offset −7 to −3&#8203;mm, εr 3.8–4.6.
+        </p>
       </div>
 
       <div className="antenna-designer-visualization">
@@ -389,7 +422,7 @@ export const AntennaDesigner: React.FC = () => {
           />
         ) : (
           <div className="visualization-placeholder">
-            <p>Run simulation or get prediction to view S11 response</p>
+            <p>Get result (model) to view S11 and metrics</p>
           </div>
         )}
       </div>

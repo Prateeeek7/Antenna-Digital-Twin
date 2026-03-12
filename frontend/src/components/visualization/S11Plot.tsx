@@ -7,6 +7,8 @@ interface S11PlotProps {
   s11Magnitude?: number[];
   confidenceLower?: number[];
   confidenceUpper?: number[];
+  /** X-axis range in GHz [min, max]; e.g. [3, 7] for resonance-centered plot */
+  xDomain?: [number, number];
 }
 
 export const S11Plot: React.FC<S11PlotProps> = ({
@@ -14,6 +16,7 @@ export const S11Plot: React.FC<S11PlotProps> = ({
   s11Magnitude = [],
   confidenceLower,
   confidenceUpper,
+  xDomain,
 }) => {
   const data: any[] = [
     {
@@ -40,6 +43,11 @@ export const S11Plot: React.FC<S11PlotProps> = ({
     });
   }
 
+  const xRange: [number, number] | undefined =
+    xDomain ?? (frequency.length > 0
+      ? [Math.min(...frequency), Math.max(...frequency)]
+      : undefined);
+
   const layout = {
     title: {
       text: 'S11 Frequency Response',
@@ -49,6 +57,8 @@ export const S11Plot: React.FC<S11PlotProps> = ({
       title: 'Frequency (GHz)',
       gridcolor: '#2D3748',
       color: '#9BA3AF',
+      ...(xRange && { range: xRange }),
+      autorange: !xRange,
     },
     yaxis: {
       title: 'S11 (dB)',
@@ -58,12 +68,19 @@ export const S11Plot: React.FC<S11PlotProps> = ({
     plot_bgcolor: '#0E1116',
     paper_bgcolor: '#1C2128',
     font: { color: '#E6EDF3', family: 'Inter' },
-    margin: { l: 60, r: 20, t: 40, b: 60 },
+    margin: { l: 52, r: 16, t: 36, b: 52 },
+    autosize: true,
   };
 
   return (
     <div className="s11-plot">
-      <Plot data={data} layout={layout} config={{ displayModeBar: false }} />
+      <Plot
+        data={data}
+        layout={layout}
+        config={{ displayModeBar: false, responsive: true }}
+        style={{ width: '100%', height: '100%', minHeight: '200px' }}
+        useResizeHandler
+      />
     </div>
   );
 };

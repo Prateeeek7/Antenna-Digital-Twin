@@ -95,7 +95,7 @@ async def create_antenna_instance(
             "instance_id": instance.instance_id,
             "parameters": parameters.model_dump(),
             "created_at": instance.created_at.isoformat(),
-            "metadata": instance.metadata,
+            "metadata": instance.instance_metadata,
         }
     except HTTPException:
         raise
@@ -110,23 +110,29 @@ async def list_antenna_instances(
     limit: int = 100,
     db: Session = Depends(get_db)
 ):
-    """List all antenna instances."""
+    """List all antenna instances. Returns empty list if DB unavailable or on parse error."""
     try:
         instances = db.query(AntennaInstance).offset(skip).limit(limit).all()
-        
-        return [
-            {
-                "id": inst.id,
-                "instance_id": inst.instance_id,
-                "parameters": db_to_antenna_params(inst).model_dump(),
-                "created_at": inst.created_at.isoformat(),
-                "updated_at": inst.updated_at.isoformat() if inst.updated_at else None,
-                "metadata": inst.instance_metadata,
-            }
-            for inst in instances
-        ]
+        out = []
+        for inst in instances:
+            try:
+                params = db_to_antenna_params(inst)
+                out.append({
+                    "id": inst.id,
+                    "instance_id": inst.instance_id,
+                    "parameters": params.model_dump(),
+                    "created_at": inst.created_at.isoformat(),
+                    "updated_at": inst.updated_at.isoformat() if inst.updated_at else None,
+                    "metadata": inst.instance_metadata or {},
+                })
+            except Exception:
+                continue
+        return out
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to list antenna instances: {str(e)}")
+        # Return empty list so UI stays connected; log for debugging
+        import logging
+        logging.warning("list_antenna_instances failed (returning []): %s", e)
+        return []
 
 
 @router.get("/{instance_id}")
@@ -149,7 +155,7 @@ async def get_antenna_instance(
             "parameters": db_to_antenna_params(instance).model_dump(),
             "created_at": instance.created_at.isoformat(),
             "updated_at": instance.updated_at.isoformat() if instance.updated_at else None,
-            "metadata": instance.metadata,
+            "metadata": instance.instance_metadata,
         }
     except HTTPException:
         raise
@@ -189,7 +195,7 @@ async def update_antenna_instance(
             "instance_id": instance.instance_id,
             "parameters": db_to_antenna_params(instance).model_dump(),
             "updated_at": instance.updated_at.isoformat(),
-            "metadata": instance.metadata,
+            "metadata": instance.instance_metadata,
         }
     except HTTPException:
         raise

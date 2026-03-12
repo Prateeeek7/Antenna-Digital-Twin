@@ -9,22 +9,23 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
   },
   "dependencies": {
+    "@react-three/drei": "^9.88.13",
+    "@react-three/fiber": "^8.15.11",
+    "@tanstack/react-query": "^5.12.0",
+    "axios": "^1.6.2",
+    "katex": "^0.16.28",
+    "plotly.js": "^2.27.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.20.0",
-    "@tanstack/react-query": "^5.12.0",
-    "zustand": "^4.4.7",
-    "plotly.js": "^2.27.0",
     "react-plotly.js": "^2.6.0",
-    "@react-three/fiber": "^8.15.11",
-    "@react-three/drei": "^9.88.13",
+    "react-router-dom": "^6.20.0",
     "three": "^0.158.0",
-    "axios": "^1.6.2"
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
+    "@types/plotly.js": "^2.12.29",
     "@types/react": "^18.2.43",
     "@types/react-dom": "^18.2.17",
-    "@types/plotly.js": "^2.12.29",
     "@types/three": "^0.158.3",
     "@typescript-eslint/eslint-plugin": "^6.14.0",
     "@typescript-eslint/parser": "^6.14.0",
@@ -36,22 +37,3 @@
     "vite": "^5.0.8"
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

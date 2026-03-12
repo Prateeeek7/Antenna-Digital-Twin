@@ -16,8 +16,8 @@ class EMSimulationDatabaseService:
     """Service for persisting EM simulations to database."""
     
     def __init__(self):
-        """Initialize database service."""
-        self.simulations_dir = settings.EM_SOLVER_RESULTS_DIR
+        """Initialize database service (use absolute path for background tasks)."""
+        self.simulations_dir = Path(settings.EM_SOLVER_RESULTS_DIR).resolve()
         self.simulations_dir.mkdir(parents=True, exist_ok=True)
     
     def save_simulation(

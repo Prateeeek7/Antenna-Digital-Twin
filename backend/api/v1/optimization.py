@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from typing import Dict, Any, Optional
-from pydantic import BaseModel
+from typing import Dict, Any, Optional, List, Literal
+from pydantic import BaseModel, Field
 from backend.database.base import get_db
-from backend.core.models.schemas import AntennaParameters
+from backend.core.models.schemas import AntennaParameters, TargetSpectrum
 from backend.optimization.geometry_tuner import GeometryOptimizer
 from backend.optimization.whatif_analyzer import WhatIfAnalyzer
 from backend.core.exceptions import OptimizationError
@@ -20,6 +20,17 @@ class WhatIfRequest(BaseModel):
     """What-if analysis request."""
     parameters: AntennaParameters
     variation: Dict[str, float] = {}
+
+
+class OptimizeSpectrumRequest(BaseModel):
+    """Request for UCE-style full S11 spectrum matching."""
+    initial_parameters: AntennaParameters
+    target_spectrum: TargetSpectrum
+    optimizer: Literal["lbfgs", "cem"] = Field(default="lbfgs", description="Optimizer: lbfgs or cem")
+    quantile: float = Field(default=0.9, ge=0.01, le=1.0, description="Spectrum loss quantile")
+    n_samples: int = Field(default=30, ge=5, le=200, description="CEM samples per iteration")
+    elite_frac: float = Field(default=0.15, gt=0.0, lt=1.0, description="CEM elite fraction")
+    n_iterations: int = Field(default=15, ge=1, le=100, description="CEM iterations")
 
 
 @router.post("/optimize", response_model=AntennaParameters)
@@ -37,6 +48,36 @@ async def optimize_geometry(
             raise HTTPException(status_code=400, detail=f"Unknown objective: {objective}")
         
         return optimized
+    except OptimizationError as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Optimization error: {str(e)}")
+
+
+@router.post("/optimize-spectrum")
+async def optimize_spectrum(
+    request: OptimizeSpectrumRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Optimize geometry so predicted S11 curve matches target spectrum (UCE-style).
+    Supports L-BFGS-B or Cross-Entropy Method (CEM).
+    """
+    try:
+        optimized, loss_history = geometry_optimizer.optimize_s11_spectrum(
+            initial_parameters=request.initial_parameters,
+            target_frequency_hz=request.target_spectrum.frequency_hz,
+            target_s11_magnitude_db=request.target_spectrum.s11_magnitude_db,
+            optimizer=request.optimizer,
+            quantile=request.quantile,
+            n_samples=request.n_samples,
+            elite_frac=request.elite_frac,
+            n_iterations=request.n_iterations,
+        )
+        return {
+            "optimized_parameters": optimized,
+            "loss_history": loss_history,
+        }
     except OptimizationError as e:
         raise HTTPException(status_code=500, detail=str(e))
     except Exception as e:

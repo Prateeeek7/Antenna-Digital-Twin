@@ -3,6 +3,27 @@
 from typing import List, Dict, Any, Optional, Tuple
 import numpy as np
 import torch
+
+# PyTorch 2.x removed torch.symeig; gpytorch still uses it in lanczos. Use linalg.eigh instead.
+def _symeig_compat(A, eigenvectors=False, upper=True):
+    uplo = "U" if upper else "L"
+    A_cpu = A.cpu() if A.is_cuda else A
+    if eigenvectors:
+        L, V = torch.linalg.eigh(A_cpu, UPLO=uplo)
+        if A.is_cuda:
+            L, V = L.to(A.device), V.to(A.device)
+        return L, V
+    L = torch.linalg.eigvalsh(A_cpu, UPLO=uplo)
+    if A.is_cuda:
+        L = L.to(A.device)
+    return L, torch.empty(0, device=A.device, dtype=A.dtype)
+
+
+try:
+    torch.symeig(torch.eye(2), eigenvectors=True)
+except (RuntimeError, AttributeError):
+    torch.symeig = _symeig_compat
+
 import gpytorch
 from gpytorch.models import ExactGP
 from gpytorch.means import ConstantMean

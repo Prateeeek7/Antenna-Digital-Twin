@@ -40,17 +40,18 @@ export const ResultsViewer: React.FC = () => {
       });
     }
 
-    // Gain with confidence intervals if available
+    // Gain with confidence intervals (patch antenna: 4-8 dBi typical)
     if (activeData.gain !== undefined) {
       let gainValue = activeData.gain.toFixed(2);
       if (activeData.gain_confidence_lower !== undefined && activeData.gain_confidence_upper !== undefined) {
         gainValue += ` [${activeData.gain_confidence_lower.toFixed(2)}, ${activeData.gain_confidence_upper.toFixed(2)}]`;
       }
+      const g = activeData.gain;
       metrics.push({
         metric: 'Peak Gain',
         value: gainValue,
         unit: 'dBi',
-        status: activeData.gain > 5 ? 'success' : activeData.gain > 3 ? 'warning' : 'error',
+        status: g >= 4 && g <= 8 ? 'success' : g >= 3 && g <= 9 ? 'warning' : 'error',
       });
     }
 
@@ -71,33 +72,45 @@ export const ResultsViewer: React.FC = () => {
       });
     }
 
-    // Bandwidth (-10dB)
+    // Bandwidth (-10dB): contiguous interval around resonant frequency (not full sweep)
     if (activeData.s11?.frequency && activeData.s11?.s11_magnitude) {
-      const below10dB = activeData.s11.frequency.filter((_: any, i: number) => 
-        activeData.s11.s11_magnitude[i] < -10
-      );
-      if (below10dB.length > 1) {
-        const bandwidth = (below10dB[below10dB.length - 1] - below10dB[0]) / 1e6; // Hz to MHz
+      const mags = activeData.s11.s11_magnitude;
+      const freqs = activeData.s11.frequency;
+      const minIdx = mags.indexOf(Math.min(...mags));
+      let lo = minIdx;
+      let hi = minIdx;
+      while (lo > 0 && mags[lo - 1] < -10) lo -= 1;
+      while (hi < freqs.length - 1 && mags[hi + 1] < -10) hi += 1;
+      if (hi > lo) {
+        const bandwidthHz = freqs[hi] - freqs[lo];
+        const bandwidth = bandwidthHz / 1e6;
+        const bwOk = bandwidth >= 20 && bandwidth <= 150;
+        const bwWarn = bandwidth >= 10 && bandwidth <= 200;
         metrics.push({
           metric: 'Bandwidth (-10dB)',
           value: bandwidth.toFixed(0),
           unit: 'MHz',
-          status: bandwidth > 100 ? 'success' : bandwidth > 50 ? 'warning' : 'error',
+          status: bwOk ? 'success' : bwWarn ? 'warning' : 'error',
         });
       }
     }
 
-    // Resonant Frequency
+    // Resonant Frequency: use design center from frequency_range when available
     if (activeData.s11?.frequency && activeData.s11?.s11_magnitude) {
       const minIndex = activeData.s11.s11_magnitude.indexOf(Math.min(...activeData.s11.s11_magnitude));
       const resonantFreq = activeData.s11.frequency[minIndex] / 1e9; // Hz to GHz
-      const targetFreq = activeData.antenna_parameters?.frequency_band === '2.4GHz' ? 2.4 : 3.5;
+      const band = activeData.antenna_parameters?.frequency_band;
+      const range = activeData.antenna_parameters?.frequency_range;
+      const targetFreq = range && Array.isArray(range) && range.length === 2
+        ? (range[0] + range[1]) / 2 / 1e9
+        : (band === '3.5GHz' ? 3.5 : 2.4);
       const deviation = Math.abs(resonantFreq - targetFreq);
+      const devPct = targetFreq > 0 ? (deviation / targetFreq) * 100 : deviation * 100;
       metrics.push({
         metric: 'Resonant Frequency',
         value: resonantFreq.toFixed(3),
         unit: 'GHz',
-        status: deviation < 0.1 ? 'success' : deviation < 0.2 ? 'warning' : 'error',
+        status: devPct < 3 ? 'success' : devPct < 6 ? 'warning' : 'error',
       });
     }
 
@@ -137,7 +150,11 @@ export const ResultsViewer: React.FC = () => {
         {activeData && (
           <div className="results-viewer-info">
             <span className="results-source">
-              {simulationResults ? 'EM Simulation' : 'Surrogate Prediction'}
+              {simulationResults?.solver_name === 'surrogate'
+                ? 'Model (Surrogate)'
+                : simulationResults
+                  ? 'EM Simulation'
+                  : 'Surrogate Prediction'}
             </span>
             {simulationResults && activeData.solver_name && (
               <span className="results-solver">Solver: {activeData.solver_name}</span>

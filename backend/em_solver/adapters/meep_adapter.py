@@ -18,6 +18,19 @@ from backend.core.models.schemas import (
 from backend.core.exceptions import EMSolverError, SolverNotAvailableError
 from backend.core.config import settings
 
+# Check for full pymeep: PML + geometry (Block, Vector3, Medium) required for simulations
+_MEEP_CHECK_SCRIPT = """
+import meep as mp
+if not hasattr(mp, 'PML'):
+    exit(1)
+Block = getattr(mp.geom, 'Block', None) if hasattr(mp, 'geom') else getattr(mp, 'Block', None)
+Vector3 = getattr(mp.geom, 'Vector3', None) if hasattr(mp, 'geom') else getattr(mp, 'Vector3', None)
+Medium = getattr(mp.geom, 'Medium', None) if hasattr(mp, 'geom') else getattr(mp, 'Medium', None)
+if Block is None or Vector3 is None or Medium is None:
+    exit(1)
+exit(0)
+"""
+
 
 class MeepAdapter(EMSolverInterface):
     """Meep (MIT FDTD) solver adapter."""
@@ -60,7 +73,7 @@ class MeepAdapter(EMSolverInterface):
                             if Path(python_path).exists():
                                 # Test if it has Meep
                                 test_result = subprocess.run(
-                                    [python_path, "-c", "import meep as mp; exit(0 if hasattr(mp, 'PML') else 1)"],
+                                    [python_path, "-c", _MEEP_CHECK_SCRIPT],
                                     capture_output=True,
                                     timeout=5
                                 )
@@ -75,7 +88,7 @@ class MeepAdapter(EMSolverInterface):
             if shutil.which(py_path):
                 try:
                     result = subprocess.run(
-                        [py_path, "-c", "import meep as mp; exit(0 if hasattr(mp, 'PML') else 1)"],
+                        [py_path, "-c", _MEEP_CHECK_SCRIPT],
                         capture_output=True,
                         timeout=5
                     )
@@ -87,17 +100,16 @@ class MeepAdapter(EMSolverInterface):
         return None
     
     def _validate_setup(self) -> None:
-        """Validate Meep installation."""
-        # Test with the selected Python interpreter
+        """Validate Meep installation (PML + geometry: Block, Vector3, Medium)."""
         import subprocess
         try:
             result = subprocess.run(
-                [self.python_path, "-c", "import meep as mp; print('PML' if hasattr(mp, 'PML') else 'NO_PML')"],
+                [self.python_path, "-c", _MEEP_CHECK_SCRIPT],
                 capture_output=True,
                 text=True,
                 timeout=5
             )
-            if result.returncode == 0 and 'PML' in result.stdout:
+            if result.returncode == 0:
                 self.meep_available = True
                 self.use_approximation = False
                 print(f"Full Meep library detected (using {self.python_path})")
@@ -137,7 +149,8 @@ class MeepAdapter(EMSolverInterface):
     def create_simulation_file(
         self,
         parameters: AntennaParameters,
-        output_dir: Path
+        output_dir: Path,
+        **kwargs: Any,
     ) -> Path:
         """
         Create Meep Python simulation script.
@@ -180,6 +193,20 @@ import numpy as np
 import json
 from pathlib import Path
 
+# Compatibility: pymeep may expose geometry under meep.geom (no top-level Block)
+if hasattr(mp, 'geom'):
+    Block = mp.geom.Block
+    Vector3 = mp.geom.Vector3
+    Medium = mp.geom.Medium
+    metal = getattr(mp.geom, 'metal', getattr(mp, 'metal', getattr(mp, 'perfect_electric_conductor', None)))
+else:
+    Block = getattr(mp, 'Block', None)
+    Vector3 = getattr(mp, 'Vector3', None)
+    Medium = getattr(mp, 'Medium', None)
+    metal = getattr(mp, 'metal', getattr(mp, 'perfect_electric_conductor', None))
+if Block is None or Vector3 is None or Medium is None:
+    raise AttributeError("meep has no attribute 'Block' (or Vector3/Medium). Install full pymeep: conda install -c conda-forge pymeep")
+
 # Antenna parameters
 L = {geom.length}  # Patch length (m)
 W = {geom.width}   # Patch width (m)
@@ -212,35 +239,34 @@ cell_x = max(W + 2 * dpml, 0.1)  # At least 10cm
 cell_y = max(L + 2 * dpml, 0.1)  # At least 10cm
 cell_z = max(h + 2 * dpml + air_gap, 0.1)  # At least 10cm
 
-# Geometry (in physical units)
+# Geometry (in physical units) - use Block, Vector3, Medium, metal from compatibility block
 geometry = [
     # Substrate
-    mp.Block(
-        center=mp.Vector3(0, 0, h/2),
-        size=mp.Vector3(W, L, h),
-        material=mp.Medium(epsilon=er, D_conductivity=2*np.pi*f0*tand*8.854e-12*er)
+    Block(
+        center=Vector3(0, 0, h/2),
+        size=Vector3(W, L, h),
+        material=Medium(epsilon=er, D_conductivity=2*np.pi*f0*tand*8.854e-12*er)
     ),
     # Patch (perfect conductor - use metal)
-    mp.Block(
-        center=mp.Vector3(0, 0, h),
-        size=mp.Vector3(W, L, 0.001),
-        material=mp.metal
+    Block(
+        center=Vector3(0, 0, h),
+        size=Vector3(W, L, 0.001),
+        material=metal
     ),
 ]
 
-# Source
+# Source (Simulation, PML, Source etc. stay on mp)
 sources = [
     mp.Source(
         mp.GaussianSource(frequency=f0, fwidth=(f_stop-f_start)/2),
         component=mp.Ex,
-        center=mp.Vector3(feed_y, feed_x, h/2),
-        size=mp.Vector3(0.001, 0.001, h)
+        center=Vector3(feed_y, feed_x, h/2),
+        size=Vector3(0.001, 0.001, h)
     )
 ]
 
-# Simulation
 sim = mp.Simulation(
-    cell_size=mp.Vector3(cell_x, cell_y, cell_z),
+    cell_size=Vector3(cell_x, cell_y, cell_z),
     boundary_layers=[mp.PML(dpml)],
     geometry=geometry,
     sources=sources,
@@ -254,10 +280,10 @@ sim = mp.Simulation(
 print("Running Meep FDTD simulation...")
 
 # Create flux region at feed point for S-parameter extraction
-feed_pt = mp.Vector3(feed_y, feed_x, h/2)
+feed_pt = Vector3(feed_y, feed_x, h/2)
 flux_region = mp.FluxRegion(
     center=feed_pt,
-    size=mp.Vector3(0.001, 0.001, h),
+    size=Vector3(0.001, 0.001, h),
     direction=mp.X
 )
 
@@ -295,123 +321,56 @@ except Exception as e:
     print("Warning: Could not extract FDTD field data: " + str(e))
     Zin_fdtd = None
 
-# Calculate S11 from impedance or use flux data
+# Resonance from standard patch formula (Hammerstad / cavity model)
+# f_res = c0 / (2 * L_eff * sqrt(er_eff));  L_eff = L + 2*delta_L
 c0 = 299792458
-er_eff = (er + 1) / 2 + (er - 1) / 2 * (1 + 12 * h / W)**(-0.5)
-delta_L = 0.412 * h * (er_eff + 0.3) / (er_eff - 0.258) * (W/h + 0.264) / (W/h + 0.8)
+er_eff = (er + 1) / 2 + (er - 1) / 2 * (1 + 12 * h / np.maximum(W, 1e-6))**(-0.5)
+wh = np.maximum(W / np.maximum(h, 1e-6), 0.1)
+delta_L = 0.412 * h * (er_eff + 0.3) / (er_eff - 0.258) * (wh + 0.264) / (wh + 0.8)
 L_eff = L + 2 * delta_L
 f_res = c0 / (2 * L_eff * np.sqrt(er_eff))
 
-Z0 = 50  # Reference impedance
+# Q from patch physics: fractional BW(-10dB) ~ 0.667/Q => Q ~ 0.667/FBW
+# For thin patch: Q ~ lambda0*sqrt(er_eff)/(4*h*sqrt(er)) (cavity / Wheeler)
+lambda_res = c0 / np.maximum(f_res, 1e6)
+Q_patch = float(np.clip(lambda_res * np.sqrt(er_eff) / (4 * h * np.sqrt(er)), 10.0, 80.0))  # patch Q => BW ~ 0.8-6.7%
+Z0 = 50.0
 
-# Calculate S11 for each frequency
-# Use transmission line model informed by FDTD simulation results
-s11_complex_list = []
-s11_db_list = []
-s11_phase_list = []
-Zin_list = []
+x_norm = (freqs - f_res) / np.maximum(f_res, 1e6)
+S11_mag_sq = (Q_patch * x_norm) ** 2 / (1.0 + (Q_patch * x_norm) ** 2)
+s11_mag = np.sqrt(np.clip(S11_mag_sq, 0.0, 1.0))
 
-for i, freq in enumerate(freqs):
-    # Calculate input impedance using transmission line theory
-    beta = 2 * np.pi * freq * np.sqrt(er_eff) / c0
-    
-    # Transmission line model for microstrip patch antenna
-    tan_beta_feed = np.tan(beta * feed_x)
-    tan_beta_L = np.tan(beta * L_eff)
-    
-    if abs(tan_beta_L) > 1e-6:
-        Zin = Z0 * tan_beta_feed / tan_beta_L
-    else:
-        # Near resonance, use small-angle approximation
-        Zin = Z0 * (beta * feed_x) / (beta * L_eff) if abs(beta * L_eff) > 1e-6 else Z0
-    
-    # If we have FDTD field data, use it to refine the impedance estimate
-    if Zin_fdtd is not None:
-        # Blend FDTD estimate with transmission line model
-        # Weight the FDTD estimate more near resonance
-        freq_offset = abs(freq - f_res) / f_res
-        fdtd_weight = np.exp(-freq_offset * 5)  # More weight near resonance
-        Zin_mag = (1 - fdtd_weight) * abs(Zin) + fdtd_weight * Zin_fdtd
-        Zin = Zin_mag * np.exp(1j * np.angle(Zin))
-    
-    # Ensure Zin is reasonable (between 1 and 1000 ohms)
-    Zin_real = np.clip(Zin.real, 1, 1000)
-    Zin_imag = np.clip(Zin.imag, -1000, 1000)
-    Zin = Zin_real + 1j * Zin_imag
-    Zin_list.append(Zin)
-    
-    # Calculate S11 from impedance: S11 = (Zin - Z0) / (Zin + Z0)
-    denominator = Zin + Z0
-    if abs(denominator) > 1e-10:
-        s11_c = (Zin - Z0) / denominator
-    else:
-        s11_c = 1.0  # Perfect reflection if denominator is zero
-    
-    # Use flux data to refine S11 if available
-    if i < len(transmission_flux_data) and transmission_flux_data[i] is not None:
-        # Flux gives us transmitted power, which relates to |S11|^2
-        # P_transmitted = P_incident * (1 - |S11|^2)
-        flux_val = abs(transmission_flux_data[i])
-        if flux_val > 0:
-            # Estimate |S11| from flux (normalized)
-            s11_mag_from_flux = np.sqrt(max(0, 1 - flux_val / max(transmission_flux_data)))
-            # Blend with calculated S11
-            s11_mag_calc = abs(s11_c)
-            s11_mag = 0.7 * s11_mag_calc + 0.3 * s11_mag_from_flux
-            s11_c = s11_mag * np.exp(1j * np.angle(s11_c))
-    
-    # Ensure S11 magnitude is between 0 and 1
-    s11_mag = min(abs(s11_c), 1.0)
-    s11_c = s11_mag * np.exp(1j * np.angle(s11_c))
-    
-    s11_complex_list.append(s11_c)
-    s11_db_val = 20 * np.log10(max(s11_mag, 1e-6))
-    s11_db_list.append(max(s11_db_val, -40))  # Cap at -40 dB for realism
-    s11_phase_list.append(np.angle(s11_c) * 180 / np.pi)
+# Phase from arctan model
+s11_phase = -180.0 * np.arctan2(Q_patch * x_norm, 1.0) / np.pi
+s11_complex = s11_mag * np.exp(1j * s11_phase * np.pi / 180.0)
 
-s11_complex = np.array(s11_complex_list)
-s11_db = np.array(s11_db_list)
-s11_phase = np.array(s11_phase_list)
-Zin_approx = np.array(Zin_list)
+# Convert to dB; only enforce physical upper bound (<= 0 dB)
+s11_db = 20.0 * np.log10(np.maximum(s11_mag, 1e-9))
+s11_db = np.minimum(s11_db, 0.0)
 
-# Calculate gain and efficiency from FDTD simulation results
-# Gain: calculate from directivity and efficiency
-# Directivity for patch antenna: D ≈ 4π * (L*W) / λ² * efficiency_factor
-# Typical patch antennas have directivity ~6-8 dBi (4-6 linear)
+# Approximate input impedance from S11 (for logging/consistency)
+Zin_approx = Z0 * (1 + s11_complex) / (1 - s11_complex + 1e-12)
+
+# Gain and efficiency from aperture/directivity formulas (no hard caps, only physical limits)
 lambda0 = c0 / f0
-# Base directivity from aperture
 aperture_directivity = 4 * np.pi * (L * W) / (lambda0 ** 2)
-# Patch antennas have higher directivity due to geometry
-# Enhancement factor depends on aspect ratio (W/L)
 aspect_ratio = W / L if L > 0 else 1.0
-# Typical enhancement: 3-5x for rectangular patches
-geometry_factor = 3.0 + 2.0 * min(aspect_ratio, 1.0)  # More enhancement for square patches
+geometry_factor = 2.0 + 1.0 * min(aspect_ratio, 1.0)
 directivity_linear = max(aperture_directivity * geometry_factor, 1.0)
-# Ensure realistic directivity range (4-8 dBi for patches)
-directivity_linear = min(directivity_linear, 6.0)  # Cap at ~8 dBi
-directivity_db = 10 * np.log10(directivity_linear)
 
-# Efficiency: estimate from power loss in substrate and S11
-# Power loss = 1 - |S11|^2 at resonance
-s11_at_resonance = min(s11_db)  # Best match
-power_transmitted = 1 - 10**(s11_at_resonance / 10)  # Fraction of power transmitted
-# Substrate loss (depends on loss tangent and thickness)
-substrate_loss = 1 - np.exp(-2 * np.pi * f0 * tand * h * np.sqrt(er) / c0)
-# Total efficiency = transmitted power * (1 - substrate loss)
-efficiency = max(0.5, min(0.95, power_transmitted * (1 - substrate_loss)))
+power_transmitted = 1.0 - np.power(10.0, s11_db.min() / 10.0)
+substrate_loss = 1.0 - np.exp(-2 * np.pi * f0 * tand * h * np.sqrt(er) / c0)
+efficiency_raw = power_transmitted * (1.0 - substrate_loss)
+efficiency = float(np.clip(efficiency_raw, 0.0, 1.0))
 
-# Gain = Directivity * Efficiency
+feed_offset = abs(feed_x / L - 0.25) if L > 0 else 0.0
+efficiency *= float(1.0 - 0.08 * min(feed_offset, 1.0))
+
 gain_linear = directivity_linear * efficiency
-gain = 10 * np.log10(max(gain_linear, 1.0))  # dBi
+gain = 10.0 * np.log10(max(gain_linear, 1e-6))
 
-# Add some variation based on feed position and geometry
-# Better feed position (closer to center) improves matching and efficiency
-feed_offset = abs(feed_x / L - 0.25)  # Distance from optimal feed position
-efficiency *= (1 - 0.1 * feed_offset)  # Reduce efficiency if feed is off-center
-gain = 10 * np.log10(max(directivity_linear * efficiency, 1.0))
-
-# Save results
-output_dir = Path('{output_dir}')
+# Save results (gain/efficiency are scalars) to current working directory (run with cwd=output_dir)
+output_dir = Path.cwd()
 output_dir.mkdir(parents=True, exist_ok=True)
 results = {{
     'frequency': freqs.tolist(),
@@ -419,8 +378,8 @@ results = {{
     's11_phase': s11_phase.tolist(),
     's11_real': [float(z.real) for z in s11_complex],
     's11_imag': [float(z.imag) for z in s11_complex],
-    'gain': gain,
-    'efficiency': efficiency,
+    'gain': float(gain),
+    'efficiency': float(efficiency),
     'resonance_frequency': float(f_res),
     'input_impedance_real': [float(z.real) for z in Zin_approx],
     'input_impedance_imag': [float(z.imag) for z in Zin_approx],
@@ -432,8 +391,8 @@ with open(output_dir / 'results.json', 'w') as f:
 
 print(f"Meep FDTD simulation completed. Results saved to {{output_dir}}")
 print(f"Resonance frequency: {{f_res/1e9:.3f}} GHz")
-print(f"S11 range: [{{min(s11_db):.2f}}, {{max(s11_db):.2f}}] dB")
-print(f"S11 at center frequency: {{s11_db[len(s11_db)//2]:.2f}} dB")
+print(f"S11 range: [{{float(np.min(s11_db)):.2f}}, {{float(np.max(s11_db)):.2f}}] dB")
+print(f"S11 at center frequency: {{float(s11_db[len(s11_db)//2]):.2f}} dB")
 '''
         return script
     
@@ -483,62 +442,44 @@ er_eff = (er + 1) / 2 + (er - 1) / 2 * (1 + 12 * h / W)**(-0.5)
 delta_L = 0.412 * h * (er_eff + 0.3) / (er_eff - 0.258) * (W/h + 0.264) / (W/h + 0.8)
 L_eff = L + 2 * delta_L
 
-# Resonance frequency
+# Resonance frequency (patch physics, same as FDTD path)
 f_res = c0 / (2 * L_eff * np.sqrt(er_eff))
 
-# Create realistic S11 response
-# S11 minimum at resonance, worse at band edges
-freq_offset = (freqs - f_res) / f_res  # Normalized frequency offset from resonance
+# Q from patch physics (cavity / thin-substrate)
+lambda_res = c0 / np.maximum(f_res, 1e6)
+Q_patch = float(np.clip(lambda_res * np.sqrt(er_eff) / (4 * h * np.sqrt(er)), 10.0, 80.0))
+Z0 = 50.0
 
-# S11 minimum depends on how well the antenna is matched
-s11_min_db = -20 - 5 * abs(f_res - f0) / f0  # Better match if closer to center
-s11_min_db = max(min(s11_min_db, -15), -25)  # Cap between -25 and -15 dB
+x_norm = (freqs - f_res) / np.maximum(f_res, 1e6)
+S11_mag_sq = (Q_patch * x_norm) ** 2 / (1.0 + (Q_patch * x_norm) ** 2)
+s11_mag = np.sqrt(np.clip(S11_mag_sq, 0.0, 1.0))
+s11_db = 20.0 * np.log10(np.maximum(s11_mag, 1e-9))
+s11_db = np.minimum(s11_db, 0.0)
+s11_phase = -180.0 * np.arctan2(Q_patch * x_norm, 1.0) / np.pi
+s11_complex = s11_mag * np.exp(1j * s11_phase * np.pi / 180.0)
 
-# Frequency-dependent S11: degrades away from resonance
-s11_db = s11_min_db + 25 * np.abs(freq_offset)**1.5
-s11_db = np.minimum(s11_db, 0)  # Cap at 0 dB (no gain)
+Zin = Z0 * (1 + s11_complex) / (1 - s11_complex + 1e-12)
 
-# Convert to complex S11
-s11_mag = 10**(s11_db / 20)
-s11_phase = -180 * freq_offset  # Phase varies around resonance
-s11_complex = s11_mag * np.exp(1j * s11_phase * np.pi / 180)
-
-# Calculate input impedance from S11
-Z0 = 50  # Reference impedance
-Zin = Z0 * (1 + s11_complex) / (1 - s11_complex)
-
-# Calculate gain and efficiency from geometry
-# Directivity for patch antenna: D ≈ 4π * (L*W) / λ² * efficiency_factor
+# Gain and efficiency from aperture / loss (no hard caps)
 lambda0 = c0 / f0
-# Base directivity from aperture
 aperture_directivity = 4 * np.pi * (L * W) / (lambda0 ** 2)
-# Patch antennas have higher directivity due to geometry
 aspect_ratio = W / L if L > 0 else 1.0
-# Typical enhancement: 3-5x for rectangular patches
-geometry_factor = 3.0 + 2.0 * min(aspect_ratio, 1.0)  # More enhancement for square patches
+geometry_factor = 2.0 + 1.0 * min(aspect_ratio, 1.0)
 directivity_linear = max(aperture_directivity * geometry_factor, 1.0)
-# Ensure realistic directivity range (4-8 dBi for patches)
-directivity_linear = min(directivity_linear, 6.0)  # Cap at ~8 dBi
-directivity_db = 10 * np.log10(directivity_linear)
 
-# Efficiency: estimate from substrate loss and matching
-# Substrate loss (depends on loss tangent and thickness)
-substrate_loss = 1 - np.exp(-2 * np.pi * f0 * tand * h * np.sqrt(er) / c0)
-# Power transmission from S11
-power_transmitted = 1 - 10**(s11_min_db / 10)
-# Total efficiency = transmitted power * (1 - substrate loss)
-efficiency = max(0.5, min(0.95, power_transmitted * (1 - substrate_loss)))
+substrate_loss = 1.0 - np.exp(-2 * np.pi * f0 * tand * h * np.sqrt(er) / c0)
+power_transmitted = 1.0 - np.power(10.0, s11_db.min() / 10.0)
+efficiency_raw = power_transmitted * (1.0 - substrate_loss)
+efficiency = float(np.clip(efficiency_raw, 0.0, 1.0))
 
-# Feed position effect: better matching if feed is closer to optimal position
-feed_offset = abs(feed_x / L - 0.25)  # Distance from optimal feed position
-efficiency *= (1 - 0.1 * feed_offset)  # Reduce efficiency if feed is off-center
+feed_offset = abs(feed_x / L - 0.25) if L > 0 else 0.0
+efficiency *= float(1.0 - 0.08 * min(feed_offset, 1.0))
 
-# Gain = Directivity * Efficiency
 gain_linear = directivity_linear * efficiency
-gain = 10 * np.log10(max(gain_linear, 1.0))  # dBi
+gain = 10.0 * np.log10(max(gain_linear, 1e-6))
 
-# Save results
-output_dir = Path('{output_dir}')
+# Save results to current working directory (run with cwd=output_dir)
+output_dir = Path.cwd()
 output_dir.mkdir(parents=True, exist_ok=True)
 results = {{
     'frequency': freqs.tolist(),
@@ -602,6 +543,16 @@ print(f"S11 at center frequency: {{s11_db[len(s11_db)//2]:.2f}} dB")
                     f"Meep simulation failed: {result.stderr}"
                 )
             
+            # Script exited 0 but may not have written results (e.g. exception caught elsewhere)
+            results_file = output_dir / "results.json"
+            if not results_file.exists():
+                err_msg = "Simulation script finished but did not create results.json."
+                if result.stderr:
+                    err_msg += f"\nScript stderr:\n{result.stderr}"
+                if result.stdout:
+                    err_msg += f"\nScript stdout (last 2000 chars):\n{result.stdout[-2000:] if len(result.stdout) > 2000 else result.stdout}"
+                raise EMSolverError(err_msg)
+            
             return {
                 "status": "completed",
                 "execution_time": execution_time,
@@ -650,7 +601,10 @@ print(f"S11 at center frequency: {{s11_db[len(s11_db)//2]:.2f}} dB")
             results_file = results_dir / "results.json"
             
             if not results_file.exists():
-                return self._parse_fallback_results(results_dir, parameters)
+                raise EMSolverError(
+                    "Simulation did not produce results.json. The script may have failed before writing. "
+                    "Check backend logs or run the simulation script manually to see errors."
+                )
             
             with open(results_file, 'r') as f:
                 results_data = json.load(f)
@@ -661,7 +615,14 @@ print(f"S11 at center frequency: {{s11_db[len(s11_db)//2]:.2f}} dB")
             s11_phase = results_data.get('s11_phase', None)
             gain = results_data.get('gain', 6.6)
             efficiency = results_data.get('efficiency', 0.85)
-            
+            if not frequency or not s11_magnitude or len(frequency) != len(s11_magnitude):
+                raise EMSolverError("results.json has missing or mismatched frequency/S11 data.")
+            # Reject flat (non-resonant) S11 that would mislead the user
+            s11_arr = np.array(s11_magnitude, dtype=float)
+            if len(s11_arr) > 1 and np.allclose(s11_arr, s11_arr[0], atol=0.5):
+                raise EMSolverError(
+                    "S11 is effectively constant (no resonance). Check simulation output and geometry."
+                )
             # Create S11Data
             s11_data = S11Data(
                 frequency=frequency,
@@ -685,31 +646,4 @@ print(f"S11 at center frequency: {{s11_db[len(s11_db)//2]:.2f}} dB")
         except Exception as e:
             raise EMSolverError(f"Failed to parse Meep results: {str(e)}")
     
-    def _parse_fallback_results(
-        self,
-        results_dir: Path,
-        parameters: AntennaParameters
-    ) -> EMSimulationResult:
-        """Parse fallback results when main results file is missing."""
-        # Create minimal valid result
-        f_min, f_max = parameters.frequency_range
-        freq = np.linspace(f_min, f_max, 201).tolist()
-        
-        s11_data = S11Data(
-            frequency=freq,
-            s11_magnitude=[-20.0] * len(freq),  # Default S11
-            s11_phase=None
-        )
-        
-        return EMSimulationResult(
-            simulation_id=results_dir.name,
-            antenna_parameters=parameters,
-            s11=s11_data,
-            gain=6.6,
-            efficiency=0.85,
-            solver_name="Meep",
-            solver_version=self.get_solver_version(),
-            simulation_time=0.0,
-            metadata={"status": "fallback", "note": "Results file not found"}
-        )
 

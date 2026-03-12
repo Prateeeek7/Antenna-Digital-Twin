@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     
     # API
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:8080"]
+    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:5173", "http://localhost:8080", "http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:8080"]
     
     # Database - PostgreSQL
     POSTGRES_HOST: str = "localhost"
@@ -48,11 +48,18 @@ class Settings(BaseSettings):
     S3_BUCKET_MEASUREMENTS: str = "measurements"
     S3_USE_SSL: bool = False
     
-    # ML Models
-    ML_MODEL_DIR: Path = Path("models")
-    ML_CACHE_DIR: Path = Path("cache")
+    # ML Models (resolved relative to backend package so path is consistent)
+    _backend_root: Path = Path(__file__).resolve().parent.parent
+    ML_MODEL_DIR: Path = _backend_root / "models"
+    ML_CACHE_DIR: Path = _backend_root / "cache"
     ML_DEVICE: str = "cpu"  # "cpu" or "cuda"
-    
+    # When predicted surrogate MAE (e.g. dB) exceeds this, recommend running full EM
+    EM_ACCURACY_THRESHOLD_MAE: float = 1.0  # dB for s11_min
+    # Nearest-neighbor blend: pull model output toward OpenEMS training data when design is close
+    NN_BLEND_ENABLED: bool = True
+    NN_BLEND_DISTANCE_THRESHOLD: float = 2.0  # in scaled space; blend when nearest dist < this
+    NN_BLEND_WEIGHT_MAX: float = 0.5  # max weight (0–1) given to nearest training row
+
     # EM Solver
     EM_SOLVER_TIMEOUT: int = 3600  # seconds
     EM_SOLVER_MAX_WORKERS: int = 4

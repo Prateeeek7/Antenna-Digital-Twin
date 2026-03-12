@@ -34,15 +34,7 @@ export const AppLayout: React.FC = () => {
           </ResizablePanel>
         </div>
       </div>
-      <ResizablePanel
-        direction="horizontal"
-        defaultSize={200}
-        minSize={100}
-        maxSize={400}
-        storageKey="status-bar-height"
-      >
-        <StatusBar />
-      </ResizablePanel>
+      <StatusBar />
     </div>
   );
 };

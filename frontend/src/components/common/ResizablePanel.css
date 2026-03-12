@@ -11,6 +11,7 @@
 
 .resizable-panel-vertical {
   flex-direction: row;
+  height: 100%;
 }
 
 .resize-handle {

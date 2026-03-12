@@ -3,6 +3,7 @@
 from pathlib import Path
 from typing import Optional
 from backend.em_solver.interface import EMSolverInterface
+from backend.em_solver.adapters.custom_patch_adapter import CustomPatchAdapter
 from backend.em_solver.adapters.openems_adapter import OpenEMSAdapter
 from backend.em_solver.adapters.hfss_adapter import HFSSAdapter
 from backend.em_solver.adapters.cst_adapter import CSTAdapter
@@ -19,13 +20,17 @@ except ImportError:
 
 class EMSolverFactory:
     """Factory for creating EM solver adapters."""
-    
+
+    # Default "openems" uses custom_patch_v1 (openEMS Python) for accurate EM data.
+    # "openems_octave" keeps the legacy Octave/OpenEMS adapter.
     _solvers = {
-        "openems": OpenEMSAdapter,
+        "openems": CustomPatchAdapter,
+        "openems_octave": OpenEMSAdapter,
+        "custom_patch": CustomPatchAdapter,
         "hfss": HFSSAdapter,
         "cst": CSTAdapter,
     }
-    
+
     # Add Meep if available
     if MEEP_AVAILABLE and MeepAdapter:
         _solvers["meep"] = MeepAdapter
@@ -63,6 +68,16 @@ class EMSolverFactory:
         
         try:
             return solver_class(solver_path=solver_path, **kwargs)
+        except SolverNotAvailableError as e:
+            # For "openems": if Python bindings (CustomPatch) fail, try Octave/OpenEMS
+            if solver_name_lower == "openems" and solver_class is CustomPatchAdapter:
+                try:
+                    return OpenEMSAdapter(solver_path=solver_path, **kwargs)
+                except Exception:
+                    pass
+            raise SolverNotAvailableError(
+                f"Failed to create {solver_name} solver: {str(e)}"
+            )
         except Exception as e:
             raise SolverNotAvailableError(
                 f"Failed to create {solver_name} solver: {str(e)}"

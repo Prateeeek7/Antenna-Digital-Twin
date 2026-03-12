@@ -3,7 +3,7 @@
 from datetime import datetime
 from enum import Enum
 from typing import Optional, List, Dict, Any
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 import numpy as np
 
 
@@ -136,6 +136,18 @@ class S11Data(BaseModel):
         return v
 
 
+class TargetSpectrum(BaseModel):
+    """Target S11 spectrum for UCE-style optimization (match full curve)."""
+    frequency_hz: List[float] = Field(..., description="Frequency points in Hz")
+    s11_magnitude_db: List[float] = Field(..., description="Target |S11| in dB")
+
+    @model_validator(mode="after")
+    def validate_length(self):
+        if len(self.frequency_hz) != len(self.s11_magnitude_db):
+            raise ValueError("frequency_hz and s11_magnitude_db must have same length")
+        return self
+
+
 class RadiationPattern(BaseModel):
     """Radiation pattern data."""
     theta: List[float] = Field(..., description="Theta angles in degrees")
@@ -143,6 +155,14 @@ class RadiationPattern(BaseModel):
     gain: List[List[float]] = Field(..., description="Gain matrix [theta][phi] in dBi")
     e_plane: Optional[List[float]] = Field(None, description="E-plane cut")
     h_plane: Optional[List[float]] = Field(None, description="H-plane cut")
+
+
+class DesignRequest(BaseModel):
+    """Request for antenna design from resonance frequency and substrate."""
+    resonance_frequency_hz: float = Field(..., gt=0, description="Target resonance frequency (Hz)")
+    relative_permittivity: float = Field(..., gt=1.0, description="Substrate εr")
+    loss_tangent: float = Field(..., ge=0.0, description="Substrate tan δ")
+    thickness_m: float = Field(..., gt=0, description="Substrate thickness (m)")
 
 
 class EMSimulationResult(BaseModel):
@@ -194,6 +214,9 @@ class SurrogatePrediction(BaseModel):
     model_version: str
     prediction_time: float = Field(..., description="Prediction time in seconds")
     timestamp: datetime = Field(default_factory=datetime.utcnow)
+    # Twin-model: when predicted surrogate error is high, run full EM
+    recommend_em_run: Optional[bool] = Field(None, description="True if accuracy predictor suggests running full EM")
+    predicted_mae: Optional[float] = Field(None, description="Predicted surrogate error (e.g. dB for s11_min)")
 
 
 
