@@ -72,6 +72,31 @@ class TrainingPipeline:
         """
         self.model_dir = model_dir or settings.ML_MODEL_DIR
         self.model_dir.mkdir(parents=True, exist_ok=True)
+
+    def _model_subdir(self, model_name: str) -> Path:
+        """Return canonical subdirectory for a model family."""
+        name = (model_name or "default").lower()
+        if name.startswith("dipole"):
+            sub = "dipole"
+        elif name.startswith("default") or name.startswith("microstrip"):
+            sub = "microstrip"
+        else:
+            sub = "custom"
+        out = self.model_dir / sub
+        out.mkdir(parents=True, exist_ok=True)
+        return out
+
+    def _resolve_model_path(self, model_name: str, metric: str) -> Path:
+        """
+        Resolve model path with backward-compatible fallback.
+        Preferred: backend/models/<family>/<model_name>_<metric>.pkl
+        Legacy:    backend/models/<model_name>_<metric>.pkl
+        """
+        preferred = self._model_subdir(model_name) / f"{model_name}_{metric}.pkl"
+        if preferred.exists():
+            return preferred
+        legacy = self.model_dir / f"{model_name}_{metric}.pkl"
+        return legacy
     
     def train_ensemble(
         self,
@@ -100,7 +125,7 @@ class TrainingPipeline:
             ensemble.fit(parameters, results, target=metric)
             
             # Save model
-            model_path = self.model_dir / f"{model_name}_{metric}.pkl"
+            model_path = self._model_subdir(model_name) / f"{model_name}_{metric}.pkl"
             self._save_model(ensemble, model_path, metric)
             
             models[metric] = ensemble
@@ -211,7 +236,7 @@ class TrainingPipeline:
         Returns:
             Trained AccuracyPredictor (also saved to model_dir).
         """
-        model_path = self.model_dir / f"{model_name}_{metric}.pkl"
+        model_path = self._resolve_model_path(model_name, metric)
         if not model_path.exists():
             raise ModelError(f"Surrogate model not found: {model_path}. Train surrogate first.")
         ensemble = self.load_model(model_path)
@@ -227,7 +252,7 @@ class TrainingPipeline:
             surrogate_predictions=surrogate_predictions,
             metric=metric,
         )
-        acc_path = self.model_dir / f"{model_name}_{metric}_accuracy.pkl"
+        acc_path = model_path.with_name(f"{model_name}_{metric}_accuracy.pkl")
         with open(acc_path, "wb") as f:
             pickle.dump(
                 {
@@ -246,7 +271,8 @@ class TrainingPipeline:
         metric: str = "s11_min",
     ) -> Optional[AccuracyPredictor]:
         """Load accuracy predictor if it exists."""
-        acc_path = self.model_dir / f"{model_name}_{metric}_accuracy.pkl"
+        model_path = self._resolve_model_path(model_name, metric)
+        acc_path = model_path.with_name(f"{model_name}_{metric}_accuracy.pkl")
         if not acc_path.exists():
             return None
         _apply_gpytorch_pickle_shims()

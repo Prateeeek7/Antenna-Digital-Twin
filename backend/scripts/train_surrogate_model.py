@@ -145,6 +145,134 @@ def _safe_float(row: dict, key: str) -> Optional[float]:
         return None
 
 
+def load_training_data_from_dipole_json(
+    json_path: Path,
+) -> tuple[list[AntennaParameters], list[EMSimulationResult]]:
+    """
+    Load dipole training data from Old_custom_dipole_results.json format.
+
+    Expected schema:
+      {
+        "results": [
+          {
+            "input": {"Dipole_Length_mm", "Wire_Radius_mm", "Feed_Gap_mm", "f0_GHz", "fc_GHz"},
+            "output": {"Gain_dBi", "Efficiency", "S11_min_dB", ...},
+            "run_id": ...
+          },
+          ...
+        ]
+      }
+
+    Note:
+      The existing surrogate stack expects AntennaParameters fields used by the
+      current featurizer. For dipole-only models, we map dipole variables into
+      these numeric slots consistently:
+        - length  <- Dipole_Length_mm
+        - width   <- 2 * Wire_Radius_mm
+        - height  <- Feed_Gap_mm
+        - feed_x  <- normalized f0_GHz mapped to [0, length]
+        - feed_y  <- normalized fc_GHz mapped to [0, width]
+        - substrate eps/loss fixed for air dipole
+    """
+    with open(json_path, "r", encoding="utf-8") as f:
+        payload = json.load(f)
+
+    entries = payload.get("results", [])
+    parameters: list[AntennaParameters] = []
+    results: list[EMSimulationResult] = []
+
+    for entry in entries:
+        if entry.get("error"):
+            continue
+
+        inp = entry.get("input", {}) or {}
+        out = entry.get("output", {}) or {}
+        try:
+            dipole_length_mm = float(inp["Dipole_Length_mm"])
+            wire_radius_mm = float(inp["Wire_Radius_mm"])
+            feed_gap_mm = float(inp["Feed_Gap_mm"])
+            f0_ghz = float(inp.get("f0_GHz", 2.4))
+            fc_ghz = float(inp.get("fc_GHz", max(0.1, 0.45 * f0_ghz)))
+            gain_dbi = float(out["Gain_dBi"])
+            efficiency = float(out["Efficiency"])
+            s11_min_db = float(out["S11_min_dB"])
+        except (KeyError, ValueError, TypeError):
+            continue
+
+        length_m = dipole_length_mm / 1000.0
+        width_m = max(1e-6, (2.0 * wire_radius_mm) / 1000.0)
+        height_m = max(1e-6, feed_gap_mm / 1000.0)
+
+        # Keep synthetic features bounded by geometry dimensions.
+        f0_norm = max(0.0, min(1.0, f0_ghz / 10.0))
+        fc_norm = max(0.0, min(1.0, fc_ghz / 5.0))
+        feed_x_m = f0_norm * length_m
+        feed_y_m = fc_norm * width_m
+
+        f0_hz = f0_ghz * 1e9
+        fc_hz = max(1e8, fc_ghz * 1e9)
+        f_min = max(1e8, f0_hz - fc_hz)
+        f_max = f0_hz + fc_hz
+
+        geom = AntennaGeometry(
+            length=length_m,
+            width=width_m,
+            height=height_m,
+            feed_x=feed_x_m,
+            feed_y=feed_y_m,
+        )
+        substrate = SubstrateProperties(
+            substrate_type=SubstrateType.FR4,
+            relative_permittivity=1.0006,  # air-like for dipole mapping
+            loss_tangent=0.0,
+            thickness=height_m,
+        )
+        params = AntennaParameters(
+            geometry=geom,
+            substrate=substrate,
+            frequency_band=FrequencyBand.BAND_24GHZ,
+            frequency_range=(f_min, f_max),
+        )
+        parameters.append(params)
+
+        freq_ghz = float(out.get("Resonance_Frequency_GHz", f0_ghz))
+        freq_hz = freq_ghz * 1e9
+        s11_data = S11Data(
+            frequency=[f_min, freq_hz, f_max],
+            s11_magnitude=[s11_min_db + 5.0, s11_min_db, s11_min_db + 5.0],
+            s11_phase=None,
+        )
+        result = EMSimulationResult(
+            simulation_id=str(uuid.uuid4()),
+            antenna_parameters=params,
+            s11=s11_data,
+            gain=gain_dbi,
+            efficiency=efficiency,
+            solver_name="Dipole FDTD (JSON)",
+            solver_version="1.0",
+            simulation_time=0.0,
+            metadata={
+                "source": json_path.name,
+                "antenna_type": "dipole",
+                "run_id": entry.get("run_id"),
+                "Dipole_Length_mm": dipole_length_mm,
+                "Wire_Radius_mm": wire_radius_mm,
+                "Feed_Gap_mm": feed_gap_mm,
+                "f0_GHz": f0_ghz,
+                "fc_GHz": fc_ghz,
+                "S11_max_dB": out.get("S11_max_dB"),
+                "Resonance_Frequency_GHz": freq_ghz,
+                "Min_S11_dB": out.get("Min_S11_dB"),
+                "Min_S11_freq_GHz": out.get("Min_S11_freq_GHz"),
+                "Simulation_Method": out.get("Simulation_Method", ""),
+                "S11_points": out.get("S11_points", ""),
+            },
+        )
+        results.append(result)
+
+    return parameters, results
+
+
 def cleanup_previous_data():
     """Remove all previous EM results and saved surrogate models."""
     import shutil
@@ -451,7 +579,19 @@ def main():
         const="backend/data/Simulation_Data.csv",
         default=None,
         metavar="PATH",
-        help="Train from CSV file. If PATH omitted, uses backend/data/Simulation_Data.csv. Cleans previous em_results and models.",
+        help="Train from CSV file. If PATH omitted, uses backend/data/Simulation_Data.csv.",
+    )
+    parser.add_argument(
+        "--dipole-json",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help="Train from dipole JSON dataset (Old_custom_dipole_results.json format).",
+    )
+    parser.add_argument(
+        "--clean-existing",
+        action="store_true",
+        help="Clean previous EM results and model files before training.",
     )
     args = parser.parse_args()
 
@@ -461,14 +601,36 @@ def main():
     print("=" * 60)
     print("Antenna Digital Twin - Surrogate Model Training")
     print("=" * 60)
-    if args.csv is not None:
+    if args.dipole_json is not None:
+        json_input = args.dipole_json
+        print("Mode: Dipole JSON (no EM simulation)")
+        print(f"  JSON file: {json_input}")
+        print(f"  Model name: {args.model_name}")
+        print(f"  Clean existing: {args.clean_existing}")
+        print("=" * 60)
+        if args.clean_existing:
+            cleanup_previous_data()
+        json_path = Path(json_input)
+        if not json_path.is_absolute():
+            root = Path(__file__).resolve().parent.parent.parent
+            json_path = root / json_input
+        if not json_path.exists():
+            raise FileNotFoundError(f"Dipole JSON file not found: {json_path}")
+        parameters, results = load_training_data_from_dipole_json(json_path)
+        print(f"Loaded {len(parameters)} dipole samples from {json_path.name}")
+        print("  Inputs: Dipole_Length_mm, Wire_Radius_mm, Feed_Gap_mm, f0_GHz, fc_GHz")
+        print("  Targets: S11_min_dB, Gain_dBi, Efficiency")
+    elif args.csv is not None:
         csv_input = args.csv or "backend/data/Simulation_Data.csv"
         print("Mode: CSV (no EM simulation, no radiation/visualization)")
         print(f"  CSV file: {csv_input}")
         print(f"  Model name: {args.model_name}")
+        print(f"  Clean existing: {args.clean_existing}")
         print("=" * 60)
-        # Clean previous data and models
-        cleanup_previous_data()
+        # Optional clean for full retraining; disabled by default so multiple
+        # antenna-type model sets (e.g., default + dipole) can coexist.
+        if args.clean_existing:
+            cleanup_previous_data()
         csv_input = args.csv or "backend/data/Simulation_Data.csv"
         csv_path = Path(csv_input)
         if not csv_path.is_absolute():

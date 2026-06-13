@@ -70,7 +70,6 @@ export const DesignFromFrequency: React.FC = () => {
   };
 
   const g = result?.antenna_parameters?.geometry;
-  const sub = result?.antenna_parameters?.substrate;
 
   return (
     <div className="design-from-freq">

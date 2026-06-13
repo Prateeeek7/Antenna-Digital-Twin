@@ -16,6 +16,8 @@ export interface CalculationDetails {
 }
 
 interface AntennaState {
+  antennaType: 'microstrip' | 'dipole';
+  setAntennaType: (antennaType: 'microstrip' | 'dipole') => void;
   parameters: any;
   setParameters: (params: any) => void;
   simulationResults: any;
@@ -27,6 +29,8 @@ interface AntennaState {
 }
 
 export const useAntennaStore = create<AntennaState>((set) => ({
+  antennaType: 'microstrip',
+  setAntennaType: (antennaType) => set({ antennaType }),
   parameters: null,
   setParameters: (params) => set({ parameters: params }),
   simulationResults: null,

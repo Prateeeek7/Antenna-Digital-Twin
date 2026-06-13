@@ -4,6 +4,8 @@ import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import { Table } from '../common/Table';
 import api from '../../services/api';
+import { useAntennaStore } from '../../services/state';
+import { decodeDipolePhysicalFromGeometry } from '../../utils/dipoleParams';
 import './InstanceManager.css';
 
 interface AntennaInstance {
@@ -29,10 +31,11 @@ interface AntennaInstance {
   };
   created_at: string;
   updated_at?: string;
-  metadata?: any;
+  metadata?: { antenna_type?: string; [k: string]: unknown };
 }
 
 export const InstanceManager: React.FC = () => {
+  const { parameters: designerParameters, antennaType } = useAntennaStore();
   const [instances, setInstances] = useState<AntennaInstance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,6 +57,22 @@ export const InstanceManager: React.FC = () => {
   useEffect(() => {
     fetchInstances();
   }, []);
+
+  const handleSaveFromDesigner = async () => {
+    if (!designerParameters) {
+      setError('Open the Designer tab first so parameters are set (run dipole surrogate if you need fresh results).');
+      return;
+    }
+    try {
+      setError(null);
+      await api.post('/antenna-instances/', designerParameters, {
+        params: formData.instance_id.trim() ? { instance_id: formData.instance_id.trim() } : {},
+      });
+      await fetchInstances();
+    } catch (err: any) {
+      setError(`Save failed: ${err.response?.data?.detail || err.message}`);
+    }
+  };
 
   const fetchInstances = async () => {
     try {
@@ -91,12 +110,9 @@ export const InstanceManager: React.FC = () => {
         frequency_range: formData.frequency_band === '2.4GHz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
       };
 
-      const payload: any = { parameters: antennaParams };
-      if (formData.instance_id) {
-        payload.instance_id = formData.instance_id;
-      }
-
-      await api.post('/antenna-instances/', payload);
+      await api.post('/antenna-instances/', antennaParams, {
+        params: formData.instance_id.trim() ? { instance_id: formData.instance_id.trim() } : {},
+      });
       setShowCreateForm(false);
       resetForm();
       fetchInstances();
@@ -127,9 +143,7 @@ export const InstanceManager: React.FC = () => {
         frequency_range: formData.frequency_band === '2.4GHz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
       };
 
-      await api.put(`/antenna-instances/${instance.instance_id}`, {
-        parameters: antennaParams,
-      });
+      await api.put(`/antenna-instances/${instance.instance_id}`, antennaParams);
       setEditingInstance(null);
       resetForm();
       fetchInstances();
@@ -194,14 +208,20 @@ export const InstanceManager: React.FC = () => {
     },
     {
       key: 'geometry',
-      label: 'Size (mm)',
-      render: (_: any, row: AntennaInstance) =>
-        `${(row.parameters.geometry.length * 1000).toFixed(1)} × ${(row.parameters.geometry.width * 1000).toFixed(1)}`,
+      label: antennaType === 'dipole' ? 'Dipole (decoded)' : 'Size (mm)',
+      render: (_: any, row: AntennaInstance) => {
+        if (antennaType === 'dipole') {
+          const d = decodeDipolePhysicalFromGeometry(row.parameters.geometry);
+          return `L ${d.dipoleLengthMm.toFixed(1)} · 2R ${(2 * d.wireRadiusMm).toFixed(2)} · gap ${d.feedGapMm.toFixed(2)}`;
+        }
+        return `${(row.parameters.geometry.length * 1000).toFixed(1)} × ${(row.parameters.geometry.width * 1000).toFixed(1)}`;
+      },
     },
     {
       key: 'substrate',
       label: 'Substrate',
-      render: (_: any, row: AntennaInstance) => row.parameters.substrate.substrate_type,
+      render: (_: any, row: AntennaInstance) =>
+        antennaType === 'dipole' ? '— (surrogate encoding)' : row.parameters.substrate.substrate_type,
     },
     {
       key: 'actions',
@@ -223,16 +243,29 @@ export const InstanceManager: React.FC = () => {
     <div className="instance-manager">
       <div className="instance-manager-header">
         <h2 className="section-header">Antenna Instance Management</h2>
-        <Button
-          variant="primary"
-          onClick={() => {
-            resetForm();
-            setShowCreateForm(true);
-          }}
-        >
-          Create New Instance
-        </Button>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {antennaType === 'dipole' && (
+            <Button variant="secondary" onClick={handleSaveFromDesigner} disabled={!designerParameters}>
+              Save current Designer parameters
+            </Button>
+          )}
+          <Button
+            variant="primary"
+            onClick={() => {
+              resetForm();
+              setShowCreateForm(true);
+            }}
+          >
+            {antennaType === 'dipole' ? 'Create (manual geometry)' : 'Create New Instance'}
+          </Button>
+        </div>
       </div>
+      {antennaType === 'dipole' && (
+        <p className="result-comparison-note" style={{ marginBottom: 12, maxWidth: 640 }}>
+          Instances store the same encoded geometry as the dipole surrogate. Prefer <strong>Save current Designer parameters</strong>,
+          or use manual create if you edit raw encoded length / width / height / feeds.
+        </p>
+      )}
 
       {error && (
         <div className="error-message" role="alert">

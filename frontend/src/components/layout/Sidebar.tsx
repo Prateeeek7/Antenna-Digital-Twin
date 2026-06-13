@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../../services/api';
 import './Sidebar.css';
 
@@ -80,7 +81,11 @@ function getIcon(type: string): string {
   }
 }
 
-export const Sidebar: React.FC = () => {
+interface SidebarProps {
+  antennaLabel: string;
+}
+
+export const Sidebar: React.FC<SidebarProps> = ({ antennaLabel }) => {
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedId, setSelectedId] = useState<string>('');
@@ -142,7 +147,15 @@ export const Sidebar: React.FC = () => {
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h2 className="sidebar-title">Projects</h2>
+        <Link to="/" className="sidebar-back-link">
+          ← Back to Dashboard
+        </Link>
+        <h2 className="sidebar-title">{antennaLabel} Projects</h2>
+        {antennaLabel === 'Microstrip' && (
+          <Link to="/microstrip/calculator" className="sidebar-tools-link">
+            Patch calculator
+          </Link>
+        )}
       </div>
       <div className="sidebar-content">
         {loading ? (

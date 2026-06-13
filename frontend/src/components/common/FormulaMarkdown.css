@@ -1,0 +1,42 @@
+.formula-markdown {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+}
+
+.formula-markdown.formula-markdown--inline-p p {
+  margin: 0;
+}
+
+.formula-markdown p {
+  margin: 0 0 0.65em;
+}
+
+.formula-markdown p:last-child {
+  margin-bottom: 0;
+}
+
+.formula-markdown ul,
+.formula-markdown ol {
+  margin: 0.35em 0 0.65em 1.25em;
+  padding: 0;
+}
+
+.formula-markdown li {
+  margin-bottom: 0.25em;
+}
+
+.formula-markdown strong {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+
+.formula-markdown .katex {
+  font-size: 1.05em;
+}
+
+.formula-markdown .katex-display {
+  margin: 0.75em 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

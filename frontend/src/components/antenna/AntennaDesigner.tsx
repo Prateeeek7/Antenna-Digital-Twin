@@ -5,6 +5,7 @@ import { Button } from '../common/Button';
 import { S11Plot } from '../visualization/S11Plot';
 import { useAntennaStore } from '../../services/state';
 import api from '../../services/api';
+import { DipoleDesigner } from './DipoleDesigner';
 import './AntennaDesigner.css';
 
 interface AntennaParams {
@@ -38,10 +39,17 @@ const DEFAULT_PARAMS: AntennaParams = {
 };
 
 export const AntennaDesigner: React.FC = () => {
+  const { antennaType } = useAntennaStore();
+  if (antennaType === 'dipole') {
+    return <DipoleDesigner />;
+  }
+  return <MicrostripPatchDesigner />;
+};
+
+const MicrostripPatchDesigner: React.FC = () => {
   const [params, setParams] = useState<AntennaParams>(DEFAULT_PARAMS);
 
-  const [isSimulating, setIsSimulating] = useState(false);
-  const [isRunningOpenEMS, setIsRunningOpenEMS] = useState(false);
+  const [isRunningModel, setIsRunningModel] = useState(false);
   const [s11Data, setS11Data] = useState<{ frequency: number[]; s11Magnitude: number[]; resonanceFrequencyGHz?: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<ValidationError[]>([]);
@@ -121,7 +129,7 @@ export const AntennaDesigner: React.FC = () => {
     }
   };
 
-  const handleRunSimulation = async () => {
+  const handleGetResult = async () => {
     setError(null);
     const errors = validateParameters();
     if (errors.length > 0) {
@@ -129,72 +137,7 @@ export const AntennaDesigner: React.FC = () => {
       setError(`Validation failed: ${errors.map((e) => e.message).join(', ')}`);
       return;
     }
-
-    setIsSimulating(true);
-    setValidationErrors([]);
-    try {
-      const feedXAbsMm = Math.max(0, Math.min(params.length, params.length / 2 + params.feedX));
-      const feedYAbsMm = Math.max(0, Math.min(params.width, params.width / 2 + params.feedY));
-      const antennaParams = {
-        geometry: {
-          length: params.length / 1000,
-          width: params.width / 1000,
-          height: params.height / 1000,
-          feed_x: feedXAbsMm / 1000,
-          feed_y: feedYAbsMm / 1000,
-        },
-        substrate: {
-          substrate_type: params.substrateType.toUpperCase(),
-          relative_permittivity: params.permittivity,
-          loss_tangent: params.lossTangent,
-          thickness: params.height / 1000,
-        },
-        feed_type: 'INSET',
-        frequency_band: params.frequencyBand === '2.4ghz' ? '2.4GHz' : '3.5GHz',
-        frequency_range: params.frequencyBand === '2.4ghz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
-      };
-
-      // Use surrogate model by default (fast). For full EM use solver_name: 'openems'.
-      const response = await api.post('/em/simulate', antennaParams, {
-        params: { solver_name: 'surrogate' },
-        timeout: 60000, // 1 min for model; use 300000 if using openems
-      });
-      
-      
-      if (response.data && response.data.s11) {
-        const freqGHz = response.data.s11.frequency.map((f: number) => f / 1e9);
-        const mag = response.data.s11.s11_magnitude;
-        const resHz = response.data.metadata?.resonance_frequency;
-        setS11Data({
-          frequency: freqGHz,
-          s11Magnitude: mag,
-          resonanceFrequencyGHz: resHz != null ? resHz / 1e9 : undefined,
-        });
-        setParameters(response.data.antenna_parameters || antennaParams);
-        setSimulationResults(response.data);
-        setError(null);
-      } else {
-        console.error('Invalid simulation response:', response.data);
-        throw new Error('Invalid response format from simulation');
-      }
-    } catch (err: any) {
-      const errorMessage = err.response?.data?.detail || err.message || 'Simulation failed. Please check your parameters and try again.';
-      setError(`Simulation Error: ${errorMessage}`);
-      console.error('Simulation error:', err);
-    } finally {
-      setIsSimulating(false);
-    }
-  };
-
-  const handleRunOpenEMS = async () => {
-    setError(null);
-    const errors = validateParameters();
-    if (errors.length > 0) {
-      setValidationErrors(errors);
-      setError(`Validation failed: ${errors.map((e) => e.message).join(', ')}`);
-      return;
-    }
-    setIsRunningOpenEMS(true);
+    setIsRunningModel(true);
     setValidationErrors([]);
     try {
       const feedXAbsMm = Math.max(0, Math.min(params.length, params.length / 2 + params.feedX));
@@ -218,8 +161,8 @@ export const AntennaDesigner: React.FC = () => {
         frequency_range: params.frequencyBand === '2.4ghz' ? [2.0e9, 3.0e9] : [3.0e9, 4.0e9],
       };
       const response = await api.post('/em/simulate', antennaParams, {
-        params: { solver_name: 'openems', fast: false },
-        timeout: 300000, // 5 min for full FDTD
+        params: { solver_name: 'openems', antenna_type: 'microstrip', fast: false },
+        timeout: 300000,
       });
       if (response.data && response.data.s11) {
         const freqGHz = response.data.s11.frequency.map((f: number) => f / 1e9);
@@ -234,14 +177,14 @@ export const AntennaDesigner: React.FC = () => {
         setSimulationResults(response.data);
         setError(null);
       } else {
-        throw new Error('Invalid response format from OpenEMS simulation');
+        throw new Error('Invalid response format from trained model');
       }
     } catch (err: any) {
-      const msg = err.response?.data?.detail || err.message || 'OpenEMS simulation failed.';
-      setError(`OpenEMS: ${msg}`);
-      console.error('OpenEMS error:', err);
+      const msg = err.response?.data?.detail || err.message || 'Trained model run failed.';
+      setError(`Model: ${msg}`);
+      console.error('Model run error:', err);
     } finally {
-      setIsRunningOpenEMS(false);
+      setIsRunningModel(false);
     }
   };
 
@@ -395,22 +338,15 @@ export const AntennaDesigner: React.FC = () => {
 
         <div className="antenna-designer-actions">
           <Button
-            variant="primary"
-            onClick={handleRunSimulation}
-            disabled={isSimulating || isRunningOpenEMS}
-          >
-            {isSimulating ? 'Running…' : 'Get result (model)'}
-          </Button>
-          <Button
             variant="secondary"
-            onClick={handleRunOpenEMS}
-            disabled={isSimulating || isRunningOpenEMS}
+            onClick={handleGetResult}
+            disabled={isRunningModel}
           >
-            {isRunningOpenEMS ? 'OpenEMS running…' : 'Run with OpenEMS'}
+            {isRunningModel ? 'Model is running…' : 'Get Result'}
           </Button>
         </div>
         <p className="result-comparison-note" style={{ fontSize: '12px', color: 'var(--color-text-secondary, #666)', marginTop: '8px', maxWidth: '520px' }}>
-          Model is for <strong>2.4&#8203;GHz</strong> band. Trained on 1200 OpenEMS runs. Reliable within: L 30–35&#8203;mm, W 26–31&#8203;mm, H 1.2–2&#8203;mm, Feed X offset −7 to −3&#8203;mm, εr 3.8–4.6.
+          Get Result runs the trained model for the current microstrip geometry and updates S11 and metrics in the Results panel.
         </p>
       </div>
 
@@ -422,7 +358,7 @@ export const AntennaDesigner: React.FC = () => {
           />
         ) : (
           <div className="visualization-placeholder">
-            <p>Get result (model) to view S11 and metrics</p>
+            <p>Click Get Result to run the trained model and view S11 and metrics</p>
           </div>
         )}
       </div>

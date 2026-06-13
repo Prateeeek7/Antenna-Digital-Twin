@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { AntennaDesigner } from '../antenna/AntennaDesigner';
 import { DesignFromFrequency } from '../antenna/DesignFromFrequency';
-import { S11Plot } from '../visualization/S11Plot';
+import { DipoleQuickDesign } from '../antenna/DipoleQuickDesign';
+import { useAntennaStore } from '../../services/state';
 import { ResultsViewer } from '../results/ResultsViewer';
 import { OptimizationPanel } from '../optimization/OptimizationPanel';
 import { ValidationDashboard } from '../validation/ValidationDashboard';
@@ -14,18 +15,31 @@ import './Workspace.css';
 type WorkspaceTab = 'designer' | 'design' | 'results' | 'optimization' | 'validation' | 'instances' | 'measurements' | 'calibration';
 
 export const Workspace: React.FC = () => {
+  const { antennaType } = useAntennaStore();
   const [activeTab, setActiveTab] = useState<WorkspaceTab>('designer');
 
-  const tabs: Array<{ id: WorkspaceTab; label: string }> = [
-    { id: 'designer', label: 'Designer' },
-    { id: 'design', label: 'Design' },
-    { id: 'results', label: 'Results' },
-    { id: 'optimization', label: 'Optimization' },
-    { id: 'validation', label: 'Validation' },
-    { id: 'instances', label: 'Instances' },
-    { id: 'measurements', label: 'Measurements' },
-    { id: 'calibration', label: 'Calibration' },
-  ];
+  const tabs: Array<{ id: WorkspaceTab; label: string }> = useMemo(() => {
+    const all: Array<{ id: WorkspaceTab; label: string }> = [
+      { id: 'designer', label: 'Designer' },
+      { id: 'design', label: 'Design' },
+      { id: 'results', label: 'Results' },
+      { id: 'optimization', label: 'Optimization' },
+      { id: 'validation', label: 'Validation' },
+      { id: 'instances', label: 'Instances' },
+      { id: 'measurements', label: 'Measurements' },
+      { id: 'calibration', label: 'Calibration' },
+    ];
+    if (antennaType === 'dipole') {
+      return all.filter((t) => t.id !== 'validation');
+    }
+    return all;
+  }, [antennaType]);
+
+  useEffect(() => {
+    if (antennaType === 'dipole' && activeTab === 'validation') {
+      setActiveTab('designer');
+    }
+  }, [antennaType, activeTab]);
 
   return (
     <div className="workspace">
@@ -42,7 +56,7 @@ export const Workspace: React.FC = () => {
       </div>
       <div className="workspace-content">
         {activeTab === 'designer' && <AntennaDesigner />}
-        {activeTab === 'design' && <DesignFromFrequency />}
+        {activeTab === 'design' && (antennaType === 'dipole' ? <DipoleQuickDesign /> : <DesignFromFrequency />)}
         {activeTab === 'results' && <ResultsViewer />}
         {activeTab === 'optimization' && <OptimizationPanel />}
         {activeTab === 'validation' && <ValidationDashboard />}

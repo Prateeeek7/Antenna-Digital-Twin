@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Table } from '../common/Table';
 import api from '../../services/api';
+import { useAntennaStore } from '../../services/state';
 import './ValidationDashboard.css';
 
 export const ValidationDashboard: React.FC = () => {
+  const { antennaType } = useAntennaStore();
   const [validationData, setValidationData] = useState<any[]>([]);
   const [kpiData, setKpiData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -83,6 +85,11 @@ export const ValidationDashboard: React.FC = () => {
 
   return (
     <div className="validation-dashboard">
+      {antennaType === 'dipole' && (
+        <p className="result-comparison-note" style={{ marginBottom: 16, maxWidth: 560 }}>
+          Validation metrics are loaded from the shared backend; they are not dipole-specific but apply to the whole twin pipeline.
+        </p>
+      )}
       <div className="validation-section">
         <div className="section-header">Validation Metrics</div>
         {validationData.length > 0 ? (

@@ -3,9 +3,11 @@ import { Button } from '../common/Button';
 import { Input } from '../common/Input';
 import { Select } from '../common/Select';
 import api from '../../services/api';
+import { useAntennaStore } from '../../services/state';
 import './MeasurementUpload.css';
 
 export const MeasurementUpload: React.FC = () => {
+  const { antennaType } = useAntennaStore();
   const [file, setFile] = useState<File | null>(null);
   const [antennaInstanceId, setAntennaInstanceId] = useState('');
   const [fileType, setFileType] = useState('auto');
@@ -91,7 +93,13 @@ export const MeasurementUpload: React.FC = () => {
   return (
     <div className="measurement-upload">
       <div className="section-header">Measurement Upload</div>
-      
+      {antennaType === 'dipole' && (
+        <p className="result-comparison-note" style={{ marginBottom: 12, maxWidth: 560 }}>
+          Link uploads to an antenna instance saved from the <strong>Instances</strong> tab (e.g. <strong>Save current Designer parameters</strong>).
+          The ingest API is the same for dipole and microstrip.
+        </p>
+      )}
+
       {error && (
         <div className="error-message" role="alert">
           {error}

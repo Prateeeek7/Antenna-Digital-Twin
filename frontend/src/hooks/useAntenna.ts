@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import api from '../services/api';
 
 export const useAntenna = (antennaId?: string) => {
   return useQuery({

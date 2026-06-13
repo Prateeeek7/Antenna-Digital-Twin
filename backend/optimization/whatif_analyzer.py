@@ -20,7 +20,8 @@ class WhatIfAnalyzer:
     def analyze_variation(
         self,
         base_parameters: AntennaParameters,
-        variation: Dict[str, float]
+        variation: Dict[str, float],
+        model_name: str = "default",
     ) -> Dict[str, SurrogatePrediction]:
         """
         Analyze parameter variation.
@@ -35,14 +36,14 @@ class WhatIfAnalyzer:
         results = {}
         
         # Base case
-        base_pred = self.inference_service.predict(base_parameters)
+        base_pred = self.inference_service.predict(base_parameters, model_name=model_name)
         results["base"] = base_pred
         
         # Variations
         for param_name, factor in variation.items():
             # Create varied parameters
             varied_params = self._apply_variation(base_parameters, param_name, factor)
-            pred = self.inference_service.predict(varied_params)
+            pred = self.inference_service.predict(varied_params, model_name=model_name)
             results[f"{param_name}_{factor}"] = pred
         
         return results

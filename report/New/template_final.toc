@@ -1,0 +1,20 @@
+\contentsline {section}{\numberline {1}Abstract}{2}{section.1}%
+\contentsline {section}{\numberline {2}Introduction}{2}{section.2}%
+\contentsline {subsection}{\numberline {2.1}Microstrip Antenna}{2}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Dipole Antenna}{2}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}OpenEMS}{3}{subsection.2.3}%
+\contentsline {subsection}{\numberline {2.4}CST}{3}{subsection.2.4}%
+\contentsline {section}{\numberline {3}Problem Statement}{3}{section.3}%
+\contentsline {section}{\numberline {4}Objectives}{4}{section.4}%
+\contentsline {section}{\numberline {5}System Architecture}{4}{section.5}%
+\contentsline {section}{\numberline {6}Methodology}{4}{section.6}%
+\contentsline {section}{\numberline {7}Implementation Details}{5}{section.7}%
+\contentsline {section}{\numberline {8}Results and Demonstration}{5}{section.8}%
+\contentsline {subsection}{\numberline {8.1}CST and MATLAB Data Generation}{6}{subsection.8.1}%
+\contentsline {subsection}{\numberline {8.2}Simulation Outputs}{8}{subsection.8.2}%
+\contentsline {subsection}{\numberline {8.3}Training Evidence}{9}{subsection.8.3}%
+\contentsline {subsection}{\numberline {8.4}Model and Result Views}{10}{subsection.8.4}%
+\contentsline {subsection}{\numberline {8.5}Physics-Calculator Views}{12}{subsection.8.5}%
+\contentsline {section}{\numberline {9}Discussion}{14}{section.9}%
+\contentsline {section}{\numberline {10}Future Work}{15}{section.10}%
+\contentsline {section}{\numberline {11}Conclusion}{15}{section.11}%

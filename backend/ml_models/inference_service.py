@@ -30,6 +30,15 @@ class InferenceService:
         self.accuracy_predictors: Dict[str, AccuracyPredictor] = {}
         self.training_pipeline = TrainingPipeline(self.model_dir)
         self._training_cache: Optional[Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]] = None
+
+    def resolve_model_name(self, antenna_type: Optional[str], model_name: Optional[str]) -> str:
+        """Map antenna type to model family unless model_name is explicitly provided."""
+        if model_name and model_name.strip():
+            return model_name.strip()
+        at = (antenna_type or "").strip().lower()
+        if at == "dipole":
+            return "dipole"
+        return "default"
     
     def load_model(self, model_name: str, metric: str = "s11_min") -> None:
         """
@@ -39,7 +48,7 @@ class InferenceService:
             model_name: Model name
             metric: Target metric
         """
-        model_path = self.model_dir / f"{model_name}_{metric}.pkl"
+        model_path = self.training_pipeline._resolve_model_path(model_name, metric)
         
         if not model_path.exists():
             raise ModelNotFoundError(f"Model not found: {model_path}")
@@ -203,19 +212,36 @@ class InferenceService:
             parameters, frequency_range=parameters.frequency_range
         )
 
-        # Gain from gain model if available, else fallback (dBi)
-        gain_mean, gain_lo, gain_hi = 6.0, 5.0, 7.0
-        gain_path = self.model_dir / f"{model_name}_gain.pkl"
-        if gain_path.exists():
-            key_g = f"{model_name}_gain"
-            if key_g not in self.models:
-                self.load_model(model_name, "gain")
-            gain_mean, gain_lo, gain_hi = self.models[key_g].predict(parameters, confidence=confidence)
-            gain_mean = max(0.0, min(30.0, float(gain_mean)))
+        # Gain estimate (dBi)
+        # For dipoles, use a generic physics-inspired estimate so UI gain stays
+        # consistent with expected half-wave behavior:
+        #   G_realized ~= G_ideal + 10*log10(eta_mismatch)
+        # where G_ideal ~= 2.15 dBi and eta_mismatch = 1 - |Gamma|^2 at S11 minimum.
+        if model_name == "dipole":
+            gain_mean, gain_lo, gain_hi = 2.15, 1.75, 2.55
+            s11_vals = s11_pred.s11.s11_magnitude if s11_pred.s11 and s11_pred.s11.s11_magnitude else []
+            if s11_vals:
+                s11_min_db = float(min(s11_vals))
+                gamma = float(np.clip(10.0 ** (s11_min_db / 20.0), 0.0, 0.9999))
+                eta_mismatch = max(1e-4, 1.0 - gamma * gamma)
+                gain_mean = float(2.15 + 10.0 * np.log10(eta_mismatch))
+                gain_mean = float(np.clip(gain_mean, 0.0, 3.0))
+                spread = 0.35 if s11_min_db <= -10.0 else 0.50
+                gain_lo = max(0.0, gain_mean - spread)
+                gain_hi = min(3.5, gain_mean + spread)
+        else:
+            gain_mean, gain_lo, gain_hi = 6.0, 5.0, 7.0
+            gain_path = self.training_pipeline._resolve_model_path(model_name, "gain")
+            if gain_path.exists():
+                key_g = f"{model_name}_gain"
+                if key_g not in self.models:
+                    self.load_model(model_name, "gain")
+                gain_mean, gain_lo, gain_hi = self.models[key_g].predict(parameters, confidence=confidence)
+                gain_mean = max(0.0, min(30.0, float(gain_mean)))
 
         # Efficiency from efficiency model if available, else fallback [0, 1]
         eff_mean, eff_lo, eff_hi = 0.85, 0.75, 0.95
-        eff_path = self.model_dir / f"{model_name}_efficiency.pkl"
+        eff_path = self.training_pipeline._resolve_model_path(model_name, "efficiency")
         if eff_path.exists():
             key_e = f"{model_name}_efficiency"
             if key_e not in self.models:
@@ -229,7 +255,8 @@ class InferenceService:
         s11_data = s11_pred.s11
         s11_lower = s11_pred.s11_confidence_lower
         s11_upper = s11_pred.s11_confidence_upper
-        if getattr(settings, "NN_BLEND_ENABLED", True):
+        # Nearest-neighbor blend uses microstrip patch training rows only.
+        if getattr(settings, "NN_BLEND_ENABLED", True) and model_name != "dipole":
             s11_data, s11_lower, s11_upper, gain_mean, gain_lo, gain_hi, eff_mean, eff_lo, eff_hi = (
                 self._blend_with_nearest(
                     parameters, s11_pred, gain_mean, gain_lo, gain_hi, eff_mean, eff_lo, eff_hi,

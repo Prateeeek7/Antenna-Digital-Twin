@@ -10,7 +10,11 @@ interface LogEntry {
   message: string;
 }
 
-export const StatusBar: React.FC = () => {
+interface StatusBarProps {
+  antennaLabel: string;
+}
+
+export const StatusBar: React.FC<StatusBarProps> = ({ antennaLabel }) => {
   const { calculationDetails } = useAntennaStore();
   const [showLogs, setShowLogs] = useState(false);
   const [showCalculation, setShowCalculation] = useState(false);
@@ -18,7 +22,11 @@ export const StatusBar: React.FC = () => {
   const [logs, setLogs] = useState<LogEntry[]>([]);
 
   useEffect(() => {
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const raw = import.meta.env.VITE_API_URL;
+    const apiBase =
+      raw === '' ? '' : (raw ?? 'http://localhost:8001').replace(/\/$/, '');
+    const displayBase =
+      apiBase || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:8001');
 
     const checkConnection = async () => {
       try {
@@ -38,7 +46,8 @@ export const StatusBar: React.FC = () => {
         try {
           const ctrl = new AbortController();
           const t = setTimeout(() => ctrl.abort(), 5000);
-          const res = await fetch(`${baseUrl}/health`, { method: 'GET', signal: ctrl.signal });
+          const healthUrl = apiBase ? `${apiBase}/health` : '/health';
+          const res = await fetch(healthUrl, { method: 'GET', signal: ctrl.signal });
           clearTimeout(t);
           if (res.ok) {
             setConnectionStatus('connected');
@@ -55,7 +64,7 @@ export const StatusBar: React.FC = () => {
       }
       setConnectionStatus('disconnected');
       setLogs((prev) => {
-        const msg = `Backend not reachable at ${baseUrl}. Run: ./run_engine.sh backend`;
+        const msg = `Backend not reachable at ${displayBase}. Run: ./run_engine.sh backend`;
         const last = prev[prev.length - 1];
         if (last?.message !== msg) {
           return [...prev.slice(-9), { time: new Date().toLocaleTimeString(), level: 'ERROR' as const, message: msg }];
@@ -78,7 +87,8 @@ export const StatusBar: React.FC = () => {
           }
         } catch (_) {
           try {
-            const res = await fetch(`${baseUrl}/health`, { method: 'GET' });
+            const healthUrl = apiBase ? `${apiBase}/health` : '/health';
+            const res = await fetch(healthUrl, { method: 'GET' });
             if (res.ok) {
               setConnectionStatus('connected');
               setLogs((prev) => [...prev.slice(-9), { time: new Date().toLocaleTimeString(), level: 'SUCCESS' as const, message: 'Backend connected' }]);
@@ -91,7 +101,7 @@ export const StatusBar: React.FC = () => {
       }
       if (!connected) {
         setConnectionStatus('disconnected');
-        setLogs((prev) => [...prev.slice(-9), { time: new Date().toLocaleTimeString(), level: 'ERROR' as const, message: `Backend not reachable at ${baseUrl}. Run: ./run_engine.sh backend` }]);
+        setLogs((prev) => [...prev.slice(-9), { time: new Date().toLocaleTimeString(), level: 'ERROR' as const, message: `Backend not reachable at ${displayBase}. Run: ./run_engine.sh backend` }]);
       }
     };
     runWithRetries();
@@ -108,6 +118,8 @@ export const StatusBar: React.FC = () => {
           <span className="status-text">
             {connectionStatus === 'connected' ? 'Ready' : connectionStatus === 'checking' ? 'Checking...' : 'Disconnected'}
           </span>
+          <span className="status-divider">|</span>
+          <span className="status-text">{antennaLabel} Twin</span>
           <span className="status-divider">|</span>
           <span className="status-text">Model: v1.0</span>
           <span className="status-divider">|</span>

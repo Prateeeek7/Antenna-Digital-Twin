@@ -18,6 +18,7 @@ from backend.core.exceptions import EMSolverError, SolverNotAvailableError, Mode
 from backend.em_solver.factory import EMSolverFactory
 from backend.em_solver.database_service import EMSimulationDatabaseService
 from backend.core.config import settings
+from backend.dipole.encoding import decode_dipole_physical_from_parameters
 
 router = APIRouter(prefix="/em", tags=["EM Simulation"])
 
@@ -41,6 +42,8 @@ db_service = EMSimulationDatabaseService()
 async def create_simulation(
     parameters: AntennaParameters,
     solver_name: str = "surrogate",
+    antenna_type: Optional[str] = None,
+    model_name: Optional[str] = None,
     fast: bool = False,
     background_tasks: BackgroundTasks = BackgroundTasks(),
     db: Session = Depends(get_db)
@@ -59,20 +62,26 @@ async def create_simulation(
             from backend.ml_models.inference_service import InferenceService
 
             inference = InferenceService()
+            selected_model = inference.resolve_model_name(antenna_type, model_name)
             # Use s11_min + gain + efficiency models so efficiency is not s11 (dB)
             prediction = await asyncio.to_thread(
                 inference.predict_for_simulation,
                 parameters,
-                model_name="default",
+                model_name=selected_model,
                 confidence=0.95,
             )
             efficiency = max(0.0, min(1.0, float(prediction.efficiency)))
             gain = max(0.0, min(30.0, float(prediction.gain)))
+            at = (antenna_type or "microstrip").strip().lower()
             meta = {
                 "model_name": prediction.model_name,
+                "requested_model_name": selected_model,
+                "antenna_type": at,
                 "recommend_em_run": prediction.recommend_em_run,
                 "predicted_mae": prediction.predicted_mae,
             }
+            if at == "dipole":
+                meta["dipole_physical"] = decode_dipole_physical_from_parameters(prediction.antenna_parameters)
             if prediction.s11 and prediction.s11.frequency and prediction.s11.s11_magnitude:
                 mag = prediction.s11.s11_magnitude
                 idx_min = min(range(len(mag)), key=lambda i: mag[i])
@@ -93,7 +102,17 @@ async def create_simulation(
             payload = _sanitize_for_json(result.model_dump(mode="json"))
             return JSONResponse(content=payload, status_code=200)
 
-        # Physics-based solver (OpenEMS, etc.)
+        # Physics-based solver (OpenEMS, etc.) — microstrip/patch path only
+        at = (antenna_type or "microstrip").strip().lower()
+        if at == "dipole":
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Full EM (OpenEMS) in this app is wired for microstrip patch antennas only. "
+                    "For dipole, use surrogate (fast model) trained on dipole FDTD data."
+                ),
+            )
+
         logger.info("OpenEMS simulation started (solver=%s, fast=%s)", solver_name, fast)
         solver = EMSolverFactory.create_solver(solver_name)
         results_root = Path(settings.EM_SOLVER_RESULTS_DIR).resolve()

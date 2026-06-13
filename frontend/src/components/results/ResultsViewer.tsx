@@ -5,7 +5,7 @@ import { useAntennaStore } from '../../services/state';
 import './ResultsViewer.css';
 
 export const ResultsViewer: React.FC = () => {
-  const { simulationResults, predictions } = useAntennaStore();
+  const { simulationResults, predictions, antennaType } = useAntennaStore();
   const [activeView, setActiveView] = useState<'s11' | 'metrics'>('s11');
 
   // Use actual data from store, fallback to predictions if available
@@ -40,18 +40,26 @@ export const ResultsViewer: React.FC = () => {
       });
     }
 
-    // Gain with confidence intervals (patch antenna: 4-8 dBi typical)
+    // Gain: typical patch 4–8 dBi; thin dipole surrogate often ~1.5–3 dBi
     if (activeData.gain !== undefined) {
       let gainValue = activeData.gain.toFixed(2);
       if (activeData.gain_confidence_lower !== undefined && activeData.gain_confidence_upper !== undefined) {
         gainValue += ` [${activeData.gain_confidence_lower.toFixed(2)}, ${activeData.gain_confidence_upper.toFixed(2)}]`;
       }
       const g = activeData.gain;
+      const gainOk =
+        antennaType === 'dipole'
+          ? g >= 1.2 && g <= 4.0
+          : g >= 4 && g <= 8;
+      const gainWarn =
+        antennaType === 'dipole'
+          ? g >= 0 && g <= 5.5
+          : g >= 3 && g <= 9;
       metrics.push({
         metric: 'Peak Gain',
         value: gainValue,
         unit: 'dBi',
-        status: g >= 4 && g <= 8 ? 'success' : g >= 3 && g <= 9 ? 'warning' : 'error',
+        status: gainOk ? 'success' : gainWarn ? 'warning' : 'error',
       });
     }
 
@@ -115,7 +123,7 @@ export const ResultsViewer: React.FC = () => {
     }
 
     return metrics;
-  }, [activeData]);
+  }, [activeData, antennaType]);
 
   const columns = [
     { key: 'metric', label: 'Metric' },
@@ -179,6 +187,11 @@ export const ResultsViewer: React.FC = () => {
         {!activeData && (
           <div className="results-placeholder">
             <p>No results available. Run a simulation or get a prediction to view results.</p>
+            {antennaType === 'dipole' && (
+              <p style={{ marginTop: 8, fontSize: 13, opacity: 0.85 }}>
+                For the dipole twin, run <strong>Get result (dipole model)</strong> on the Designer tab first.
+              </p>
+            )}
           </div>
         )}
 

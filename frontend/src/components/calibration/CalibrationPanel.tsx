@@ -3,6 +3,7 @@ import { Button } from '../common/Button';
 import { Select } from '../common/Select';
 import { Table } from '../common/Table';
 import api from '../../services/api';
+import { useAntennaStore } from '../../services/state';
 import './CalibrationPanel.css';
 
 interface CalibrationResult {
@@ -43,6 +44,7 @@ interface Measurement {
 }
 
 export const CalibrationPanel: React.FC = () => {
+  const { antennaType } = useAntennaStore();
   const [instances, setInstances] = useState<Array<{ instance_id: string }>>([]);
   const [selectedInstance, setSelectedInstance] = useState('');
   const [measurements, setMeasurements] = useState<Measurement[]>([]);
@@ -146,6 +148,12 @@ export const CalibrationPanel: React.FC = () => {
   return (
     <div className="calibration-panel">
       <div className="section-header">Calibration Workflow</div>
+      {antennaType === 'dipole' && (
+        <p className="result-comparison-note" style={{ marginBottom: 12, maxWidth: 560 }}>
+          Select an instance that matches your dipole (saved from Designer). Calibration compares model predictions to
+          uploaded measurements the same way as for microstrip.
+        </p>
+      )}
 
       {error && (
         <div className="error-message" role="alert">

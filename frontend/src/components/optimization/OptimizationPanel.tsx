@@ -6,8 +6,12 @@ import { useAntennaStore } from '../../services/state';
 import api from '../../services/api';
 import './OptimizationPanel.css';
 
+const antennaApiParams = (antennaType: 'microstrip' | 'dipole') =>
+  antennaType === 'dipole' ? { antenna_type: 'dipole' as const } : { antenna_type: 'microstrip' as const };
+
 export const OptimizationPanel: React.FC = () => {
-  const { parameters, setParameters, simulationResults } = useAntennaStore();
+  const { parameters, setParameters, simulationResults, antennaType } = useAntennaStore();
+  const atParams = antennaApiParams(antennaType);
   const [objective, setObjective] = useState('minimize_s11');
   const [targetS11, setTargetS11] = useState('-10.0');
   const [isOptimizing, setIsOptimizing] = useState(false);
@@ -35,6 +39,7 @@ export const OptimizationPanel: React.FC = () => {
         params: {
           objective,
           target_s11: parseFloat(targetS11),
+          ...atParams,
         },
       });
 
@@ -68,18 +73,22 @@ export const OptimizationPanel: React.FC = () => {
     setError(null);
     setSpectrumResult(null);
     try {
-      const response = await api.post('/optimization/optimize-spectrum', {
-        initial_parameters: parameters,
-        target_spectrum: {
-          frequency_hz: targetS11Data.frequency,
-          s11_magnitude_db: targetS11Data.s11_magnitude,
+      const response = await api.post(
+        '/optimization/optimize-spectrum',
+        {
+          initial_parameters: parameters,
+          target_spectrum: {
+            frequency_hz: targetS11Data.frequency,
+            s11_magnitude_db: targetS11Data.s11_magnitude,
+          },
+          optimizer: spectrumOptimizer,
+          quantile: 0.9,
+          n_samples: 30,
+          elite_frac: 0.15,
+          n_iterations: 15,
         },
-        optimizer: spectrumOptimizer,
-        quantile: 0.9,
-        n_samples: 30,
-        elite_frac: 0.15,
-        n_iterations: 15,
-      });
+        { params: atParams }
+      );
 
       const { optimized_parameters, loss_history } = response.data;
       setSpectrumResult({ optimized_parameters, loss_history });
@@ -112,10 +121,14 @@ export const OptimizationPanel: React.FC = () => {
       }
 
       // Send variation in request body
-      const response = await api.post('/optimization/what-if', {
-        parameters: parameters,
-        variation: variation,
-      });
+      const response = await api.post(
+        '/optimization/what-if',
+        {
+          parameters: parameters,
+          variation: variation,
+        },
+        { params: atParams }
+      );
 
       setWhatIfResult(response.data);
       setError(null);
@@ -137,7 +150,13 @@ export const OptimizationPanel: React.FC = () => {
       )}
 
       <div className="section-header">Optimization Settings</div>
-      
+      {antennaType === 'dipole' && (
+        <p className="optimization-hint" style={{ marginBottom: 12, maxWidth: 560 }}>
+          Geometry uses the dipole surrogate encoding (length, 2× wire radius, gap, f₀, f_c). Results show encoded
+          dimensions in mm; use the Parameters panel to read physical dipole values.
+        </p>
+      )}
+
       <div className="input-group">
         <Select
           label="Objective"

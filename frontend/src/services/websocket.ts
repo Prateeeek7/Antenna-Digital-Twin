@@ -80,8 +80,29 @@ class WebSocketClient {
   }
 }
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
-export const wsClient = new WebSocketClient(WS_URL);
+function getWsUrl(): string {
+  if (import.meta.env.VITE_WS_URL) return import.meta.env.VITE_WS_URL;
+  const api = import.meta.env.VITE_API_URL;
+  if (api === '') {
+    if (typeof window !== 'undefined') {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${window.location.host}/ws`;
+    }
+    return 'ws://localhost:8001/ws';
+  }
+  if (api) {
+    try {
+      const u = new URL(api);
+      const wsProto = u.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${wsProto}//${u.host}/ws`;
+    } catch {
+      return 'ws://localhost:8001/ws';
+    }
+  }
+  return 'ws://localhost:8001/ws';
+}
+
+export const wsClient = new WebSocketClient(getWsUrl());
 
 
 

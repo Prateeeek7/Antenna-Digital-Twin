@@ -1,0 +1,18 @@
+{
+  "input": {
+    "Dipole_Length_mm": 62.0,
+    "Wire_Radius_mm": 1.0,
+    "Feed_Gap_mm": 1.0
+  },
+  "output": {
+    "Gain_dBi": 2.088185531880667,
+    "Efficiency": 0.998005657382511,
+    "S11_min_dB": -15.824677380760887,
+    "S11_max_dB": -0.1262499671073428,
+    "Resonance_Frequency_GHz": 2.178,
+    "Min_S11_dB": -15.824677380760887,
+    "Min_S11_freq_GHz": 2.178,
+    "Simulation_Method": "FDTD",
+    "S11_points": 401
+  }
+}

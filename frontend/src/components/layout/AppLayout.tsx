@@ -6,7 +6,11 @@ import { ParametersPanel } from './ParametersPanel';
 import { StatusBar } from './StatusBar';
 import './AppLayout.css';
 
-export const AppLayout: React.FC = () => {
+interface AppLayoutProps {
+  antennaLabel: string;
+}
+
+export const AppLayout: React.FC<AppLayoutProps> = ({ antennaLabel }) => {
   return (
     <div className="app-layout">
       <div className="app-layout-top">
@@ -18,7 +22,7 @@ export const AppLayout: React.FC = () => {
           storageKey="sidebar-width"
           edge="right"
         >
-          <Sidebar />
+          <Sidebar antennaLabel={antennaLabel} />
         </ResizablePanel>
         <div className="app-layout-main">
           <Workspace />
@@ -34,7 +38,7 @@ export const AppLayout: React.FC = () => {
           </ResizablePanel>
         </div>
       </div>
-      <StatusBar />
+      <StatusBar antennaLabel={antennaLabel} />
     </div>
   );
 };

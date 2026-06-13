@@ -26,7 +26,8 @@ class GeometryOptimizer:
         self,
         initial_parameters: AntennaParameters,
         target_s11: float = -10.0,
-        bounds: Optional[Dict[str, tuple]] = None
+        bounds: Optional[Dict[str, tuple]] = None,
+        model_name: str = "default",
     ) -> AntennaParameters:
         """
         Optimize geometry for target S11.
@@ -66,7 +67,7 @@ class GeometryOptimizer:
             )
             
             # Get prediction
-            pred = self.inference_service.predict(params)
+            pred = self.inference_service.predict(params, model_name=model_name)
             s11_min = min(pred.s11.s11_magnitude) if pred.s11.s11_magnitude else 0.0
             
             # Minimize difference from target
@@ -119,6 +120,7 @@ class GeometryOptimizer:
         n_samples: int = 30,
         elite_frac: float = 0.15,
         n_iterations: int = 15,
+        model_name: str = "default",
     ) -> Tuple[AntennaParameters, Optional[List[float]]]:
         """
         Optimize geometry so predicted S11 spectrum matches a target curve (UCE-style).
@@ -166,7 +168,7 @@ class GeometryOptimizer:
                 frequency_band=initial_parameters.frequency_band,
                 frequency_range=initial_parameters.frequency_range,
             )
-            pred = self.inference_service.predict(params)
+            pred = self.inference_service.predict(params, model_name=model_name)
             return spectrum_loss(
                 pred.s11.frequency,
                 pred.s11.s11_magnitude,

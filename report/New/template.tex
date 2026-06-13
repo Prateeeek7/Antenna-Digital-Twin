@@ -1,0 +1,2288 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\geometry{margin=1in}
+\graphicspath{{images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\definecolor{headingblue}{RGB}{0,0,150}
+
+\title{\textcolor{headingblue}{\textbf{AntennaTwin: A Machine Learning--Enhanced Digital Twin Platform}}\\
+\textcolor{headingblue}{\large Detailed Project Report}}
+\author{
+Pratik Kumar -- 24BML0027\\
+Shruti -- 24BML0033\\
+Uday Krishan Khandelwal -- 24BML0017\\[4pt]
+Department of Electronics Engineering (SENSE)\\
+Vellore Institute of Technology, Vellore
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.52\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Abstract}
+This report presents \textit{AntennaTwin}, a machine learning--enhanced digital twin platform that integrates the complete RF engineering flow for microstrip and dipole antennas. The system links CST and MATLAB data generation, OpenEMS full-wave simulation, surrogate-model training, and real-time frontend analysis in a single implementation. Rather than treating equations, simulation, and prediction as isolated tasks, the project provides a connected workflow where each stage informs the next stage through structured interfaces and reusable data artifacts. The backend is implemented in FastAPI and exposes prediction and simulation APIs, while the frontend is implemented in React and TypeScript with dedicated microstrip and dipole design views, S11 and performance panels, and a large searchable physics-calculator module. The project demonstrates practical acceleration of antenna iteration cycles while preserving EM traceability and lays the groundwork for Unity-based 3D radiation visualization from CST and MATLAB far-field outputs.
+
+\section{Introduction}
+Antenna design is inherently iterative: engineers use analytical formulas to estimate initial geometry, run full-wave solvers to capture electromagnetic behavior, and refine parameters based on resonance and radiation targets. In real projects, this pipeline is often fragmented across separate software tools, making it difficult to maintain consistency between assumptions, simulation settings, and final decisions. The core motivation of AntennaTwin is to remove this fragmentation by organizing the workflow into one integrated platform with clear transitions between data generation, simulation, model prediction, and result interpretation.
+
+The platform focuses on two representative antenna families. Microstrip patch antennas are central to compact wireless hardware, where substrate properties and feed location strongly influence matching and bandwidth. Dipole antennas provide a complementary family with transparent electrical-length behavior and strong educational value in resonance analysis. Supporting both families within one framework validates architectural generality and demonstrates that the digital-twin approach can extend beyond a single antenna type without redesigning the full stack.
+
+\section{Problem Statement}
+Three recurring limitations appear in conventional RF design workflows. First, equation-level tools are quick but disconnected from simulation evidence. Second, full-wave simulation workflows provide high fidelity but become slow and repetitive during broad parameter sweeps. Third, ML surrogate tools can accelerate response time but become unreliable when users cannot clearly see training boundaries or cross-check outputs against solver evidence. These limitations increase design time and reduce confidence when results must be defended in technical reviews.
+
+The practical problem addressed by this project is therefore integration quality: how to connect CST and MATLAB data generation, OpenEMS simulation execution, and trained-model inference in one consistent platform where inputs, outputs, and assumptions remain traceable. AntennaTwin solves this by using standardized payloads, modular APIs, and coherent frontend result structures for both microstrip and dipole workflows.
+
+\section{Objectives}
+The first objective is to implement a robust full-stack platform where microstrip and dipole workflows share the same engineering contract from UI input to backend result. The second objective is to establish a clear data lifecycle from CST/MATLAB and OpenEMS outputs to surrogate-model training artifacts and runtime inference services. The third objective is to provide equation-based context using a broad physics-calculator framework so design decisions are not detached from first principles. The fourth objective is future-readiness: define a path for exporting and consuming far-field datasets in Unity for interactive 3D radiation-pattern analysis.
+
+\section{System Architecture}
+AntennaTwin uses a layered architecture to separate concerns and improve maintainability. The presentation layer handles route-level UX for designers, calculators, and result panels. The service layer in FastAPI handles request validation, solver dispatch, and model inference orchestration. The computation layer contains surrogate predictors and OpenEMS simulation adapters. The external-tool layer contains CST and MATLAB workflows used for batch generation and solver-side cross-verification.
+
+This organization supports independent evolution of each layer. UI refinements can be made without touching solver internals, and model retraining can proceed without altering frontend components, as long as response contracts remain stable. This is a critical property for digital twins, where iterative upgrades are expected but workflow continuity must be preserved.
+
+\section{Methodology}
+Methodology follows a pipeline logic. Data generation starts with CST and MATLAB batches to capture design-to-response relationships over controlled parameter ranges. OpenEMS is used for full-wave runs in backend-connected workflows where higher-fidelity validation is needed during interactive design cycles. Simulation outputs are transformed into training-ready representations for surrogate modeling and then served through low-latency inference endpoints.
+
+Analytical checks are retained as guardrails at both initialization and verification stages. Approximate resonance relations for microstrip and dipole designs are used to detect implausible inputs early, reduce solver waste, and help users reason about output trends. The physics calculator then extends this reasoning across broader antenna families and utility formulas, allowing users to quickly assess whether a result is physically plausible before committing to heavier simulation or optimization runs.
+
+\section{Implementation Details}
+Backend implementation is built around FastAPI routers for prediction, EM simulation, and optimization support. Simulation requests are routed through solver-aware endpoints, while model requests load trained artifacts and return structured S11 and metric outputs. The architecture supports both microstrip and dipole flows with common schema discipline, reducing branching complexity in frontend integration.
+
+Frontend implementation uses React and TypeScript with route-based composition. The microstrip and dipole designers manage geometry and material input, dispatch asynchronous API calls, and render result plots and metric summaries in a consistent visual style. A dedicated physics-calculator page implements section/type/subtype navigation with search support and two-pane UX, enabling fast access to a large equation catalog.
+
+\section{Results and Demonstration}
+To keep technical storytelling tight, result figures are arranged exactly in development order: data generation first, simulation second, training evidence third, model outputs fourth, and physics-calculator validation last.
+
+\subsection{CST and MATLAB Data Generation}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{CST mc model.png}
+\caption{CST microstrip model used for parametric data generation.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{CST s11 graphs mc.png}
+\caption{CST S11 sweeps for microstrip validation.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dioloe cst model.jpeg}
+\caption{CST dipole model setup.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole cst s11.jpeg}
+\caption{CST dipole S11 response used for cross-tool comparison.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{matlab microstrip.png}
+\caption{MATLAB microstrip workflow output from batch export.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{Dipole matlab.png}
+\caption{MATLAB dipole workflow output from batch export.}
+\end{figure}
+
+\subsection{Simulation Outputs}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{mc simulated design.png}
+\caption{Microstrip simulated design output.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole simulated design.png}
+\caption{Dipole simulated design output.}
+\end{figure}
+
+\subsection{Training Evidence}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{1200Simulationresult.jpeg}
+\caption{Large-batch simulation and training evidence.}
+\end{figure}
+
+\subsection{Model and Result Views}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{model output mc.png}
+\caption{Microstrip model output in AntennaTwin.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{model output of dipole.png}
+\caption{Dipole model output in AntennaTwin.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{mc result.png}
+\caption{Microstrip results with S11 and metrics.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole result.png}
+\caption{Dipole results with S11 and metrics.}
+\end{figure}
+
+\subsection{Physics-Calculator Views}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{phys cal mc.png}
+\caption{Physics calculator for microstrip-related equations.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{phys cal .png}
+\caption{General physics-calculator interface and navigation.}
+\end{figure}
+
+\section{Discussion}
+The project demonstrates that solver outputs, trained models, and equation-based reasoning can be combined without creating user confusion when interfaces are structured around explicit workflow stages. Microstrip and dipole modes share backend foundations, which simplifies maintenance and makes feature extension practical. The physics-calculator layer improves interpretability by preserving a direct link between formulas and numerical outputs.
+
+From an engineering perspective, the most meaningful contribution is workflow compression with traceability. Users can perform fast model-based screening, switch to OpenEMS when fidelity is critical, and reference CST/MATLAB evidence when cross-tool confidence is needed. This layered verification strategy is stronger than model-only or simulation-only usage because it combines speed, rigor, and explainability.
+
+\section{Future Work}
+The next milestone is a standardized far-field data contract across OpenEMS, CST, and MATLAB outputs. Once this is in place, Unity integration can render interactive 3D radiation lobes with frequency sliders, polarization controls, and solver-versus-model overlays. Additional priorities include uncertainty calibration in UI, model artifact governance, and measurement-driven retraining to maintain accuracy as design distributions evolve.
+
+\section{Conclusion}
+AntennaTwin delivers a complete machine learning--enhanced digital twin workflow that connects CST/MATLAB data generation, OpenEMS full-wave simulation, surrogate-model training, and physics-assisted interpretation for microstrip and dipole antenna design. The platform proves that a coherent architecture can preserve both speed and electromagnetic rigor when model and solver stages are intentionally coordinated. By using deterministic API contracts and a consistent frontend interaction model, the system reduces iteration friction and improves reproducibility of RF design decisions.
+
+The results section confirms that this is not an isolated prototype feature, but a full pipeline: data generation informs simulation baselines, simulation baselines support training, training enables fast prediction, and physics calculators provide interpretive checks. This sequence creates a practical and defensible engineering process for both educational and project-oriented antenna development.
+
+Most importantly, the project establishes a scalable base for advanced digital-twin visualization. With CST and MATLAB far-field exports integrated into a normalized pipeline, AntennaTwin can evolve into interactive Unity-based 3D radiation analytics, enabling deeper design insight, faster review cycles, and stronger communication of electromagnetic behavior to both students and engineering teams.
+
+\section*{Acknowledgment}
+The authors sincerely thank \textbf{Dr Suresh Kumar T R}, Associate Professor, School of Electronics Engineering (SENSE), Vellore Institute of Technology, Vellore, for his guidance, technical feedback, and continuous support throughout the development of this project.
+
+\begin{thebibliography}{99}
+\bibitem{r1} M. Grieves and J. Vickers, ``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,'' in \textit{Transdisciplinary Perspectives on Complex Systems}. Cham, Switzerland: Springer, 2017.
+\bibitem{r2} F. Tao, H. Zhang, A. Liu, and A. Nee, ``Digital twin in industry: State-of-the-art,'' \textit{IEEE Trans. Ind. Informat.}, vol. 15, no. 4, pp. 2405--2415, 2019.
+\bibitem{r3} A. Fuller \textit{et al.}, ``Digital twin: Enabling technologies, challenges and open research,'' \textit{IEEE Access}, vol. 8, pp. 108952--108971, 2020.
+\bibitem{r4} C. A. Balanis, \textit{Antenna Theory: Analysis and Design}, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+\bibitem{r5} D. M. Pozar, \textit{Microwave Engineering}, 4th ed. Hoboken, NJ, USA: Wiley, 2011.
+\bibitem{r6} T. Liebig \textit{et al.}, ``openEMS -- A free and open source EC-FDTD simulation platform,'' \textit{Int. J. Numer. Model.}, vol. 32, no. 6, 2019.
+\bibitem{r7} Dassault Syst\`emes, ``CST Studio Suite,'' 2024. [Online]. Available: \url{https://www.3ds.com/products/simulia/cst-studio-suite}
+\bibitem{r8} A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Prentice Hall, 2009.
+\bibitem{r9} S. Haykin, \textit{Adaptive Filter Theory}, 5th ed. Upper Saddle River, NJ, USA: Pearson, 2014.
+\bibitem{r10} J. R. James and P. S. Hall, \textit{Handbook of Microstrip Antennas}. London, U.K.: IEE, 1989.
+\bibitem{r11} C. E. Rasmussen and C. K. I. Williams, \textit{Gaussian Processes for Machine Learning}. Cambridge, MA, USA: MIT Press, 2006.
+\bibitem{r12} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{r13} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+\bibitem{r14} A. Taflove and S. C. Hagness, \textit{Computational Electrodynamics: The Finite-Difference Time-Domain Method}, 3rd ed. Boston, MA, USA: Artech House, 2005.
+\bibitem{r15} The MathWorks, Inc., ``Antenna Toolbox Documentation,'' 2024. [Online]. Available: \url{https://www.mathworks.com/help/antenna/}
+\bibitem{r16} R. Garg, P. Bhartia, I. Bahl, and A. Ittipiboon, \textit{Microstrip Antenna Design Handbook}. Norwood, MA, USA: Artech House, 2001.
+\bibitem{r17} Unity Technologies, ``Unity Manual,'' 2024. [Online]. Available: \url{https://docs.unity3d.com/Manual/}
+\bibitem{r18} R. Szeliski, \textit{Computer Vision: Algorithms and Applications}, 2nd ed. Cham, Switzerland: Springer, 2022.
+\bibitem{r19} FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+\bibitem{r20} React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\bibitem{r21} Uvicorn, ``Uvicorn ASGI Server Documentation,'' 2026. [Online]. Available: \url{https://www.uvicorn.org/}
+\bibitem{r22} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Adv. Neural Inf. Process. Syst.}, 2019.
+\end{thebibliography}
+\end{document}
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\geometry{margin=1in}
+\graphicspath{{images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\definecolor{headingblue}{RGB}{0,0,150}
+
+\title{\textcolor{headingblue}{\textbf{AntennaTwin: A Machine Learning--Enhanced Digital Twin Platform}}\\
+\textcolor{headingblue}{\large Detailed Project Report}}
+\author{
+Pratik Kumar -- 24BML0027\\
+Shruti -- 24BML0033\\
+Uday Krishan Khandelwal -- 24BML0017\\[4pt]
+Department of Electronics Engineering (SENSE)\\
+Vellore Institute of Technology, Vellore
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.52\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Abstract}
+This report presents \textit{AntennaTwin}, a machine learning--enhanced digital twin platform that unifies microstrip and dipole antenna workflows in a single environment. The system connects CST and MATLAB data generation, OpenEMS-based full-wave simulation, trained surrogate modeling, and frontend-driven design exploration so that users can move from parametric input to validated electromagnetic results with minimal context switching. The backend is implemented in FastAPI and provides modular APIs for prediction, EM simulation, and optimization-oriented flows, while the frontend in React and TypeScript offers guided design interfaces, S11 and metric visualization, and a broad physics-calculator module for equation-based reasoning. The project emphasizes engineering traceability by preserving the relationship between simulation datasets, model artifacts, and runtime predictions. In addition to current implementation outcomes, the report outlines a forward path for integrating CST and MATLAB far-field exports into Unity to enable interactive 3D radiation-pattern visualization and richer digital-twin interpretation.
+
+\section{Introduction}
+Modern antenna design requires balancing analytical understanding with simulation fidelity and iteration speed. Classical equations remain essential for initialization, but practical engineering decisions increasingly depend on full-wave validation and data-driven prediction under multiple design constraints. In many labs, these stages are spread across disconnected tools and scripts, which slows experimentation and makes reproducibility harder.
+
+AntennaTwin addresses this gap by creating a unified digital thread from data generation to design decisions. The platform supports microstrip and dipole families as first-class workflows, exposing both trained model and solver-backed paths from the same interface. This design allows users to perform quick screening with surrogate estimates and switch to high-fidelity OpenEMS simulation when confidence checks are required. The physics-calculator component further improves usability by grounding the workflow in textbook relations before numerical evaluation.
+
+\section{Problem Statement}
+Conventional RF workflows often suffer from fragmented tools, unclear model boundaries, and limited cross-validation between solver outputs and UI-level decision support. Equation-only tools can be fast but may be inadequate for final parameter selection; simulation-only workflows can be accurate but slow for broad sweeps; model-only workflows can drift when designs leave the training envelope. The project therefore targets a practical integration problem: how to combine CST and MATLAB data generation, OpenEMS simulation, and machine learning prediction into one coherent system where output provenance remains clear.
+
+\section{Objectives}
+The project objectives are to support both microstrip and dipole workflows with consistent API behavior, establish a complete data lifecycle from solver outputs to trained models, integrate a broad physics-calculator module for formula-driven checks, and prepare far-field pipelines for Unity-based 3D radiation visualization.
+
+\section{System Architecture}
+The architecture is organized into presentation, service, computation, and external-tool layers. React and TypeScript provide the interaction layer, FastAPI handles routing and orchestration, model and solver modules execute predictions and simulations, and CST/MATLAB workflows extend dataset and validation capability. This layered structure keeps each subsystem modular while preserving deterministic data exchange across the stack.
+
+\section{Methodology}
+The methodology starts with CST and MATLAB data generation and OpenEMS simulation baselines, then proceeds to surrogate training and runtime inference. Analytical equations provide initial sizing and sanity checks, while the physics-calculator module supports quick interpretation before and after simulation. The combined approach balances speed and accuracy by using models for rapid iteration and solvers for confidence-critical verification.
+
+\section{Implementation Details}
+Backend services are built with FastAPI and expose routes for EM simulation, predictions, and optimization-oriented tasks. The frontend provides dedicated microstrip and dipole designer views, result panels, and a searchable physics-calculator interface. The implementation emphasizes consistent payload schemas, readable UI presentation, and clear mapping from user input to solver/model output.
+
+\section{Results and Demonstration}
+Figures are ordered to follow the engineering pipeline: CST/MATLAB data generation, simulation outputs, training evidence, model outputs, and physics-calculator views.
+
+\subsection{CST and MATLAB Data Generation}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{CST mc model.png}
+\caption{CST microstrip model used for parametric data generation.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{CST s11 graphs mc.png}
+\caption{CST S11 sweeps used for validation-oriented comparison.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dioloe cst model.jpeg}
+\caption{CST dipole model setup for dipole-side solver validation.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole cst s11.jpeg}
+\caption{CST dipole S11 response used in cross-tool comparison.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{matlab microstrip.png}
+\caption{MATLAB microstrip workflow output from batch processing.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{Dipole matlab.png}
+\caption{MATLAB dipole workflow output from batch evaluation.}
+\end{figure}
+
+\subsection{Simulation Outputs}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{mc simulated design.png}
+\caption{Microstrip simulated design output.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole simulated design.png}
+\caption{Dipole simulated design output.}
+\end{figure}
+
+\subsection{Training Evidence}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{1200Simulationresult.jpeg}
+\caption{Large-batch simulation and training snapshot used in surrogate development.}
+\end{figure}
+
+\subsection{Model and Result Views}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{model output mc.png}
+\caption{Microstrip model output in the digital twin interface.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{model output of dipole.png}
+\caption{Dipole model output in the digital twin interface.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{mc result.png}
+\caption{Microstrip results with S11 and derived metrics.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{dipole result.png}
+\caption{Dipole results with S11 and performance summary.}
+\end{figure}
+
+\subsection{Physics-Calculator Module}
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{phys cal mc.png}
+\caption{Physics calculator focused on microstrip-related formulas.}
+\end{figure}
+
+\begin{figure}[H]\centering
+\img[width=0.92\textwidth]{phys cal .png}
+\caption{General physics-calculator interface and category navigation.}
+\end{figure}
+
+\section{Discussion}
+The platform demonstrates that data generation, full-wave simulation, and machine learning inference can be operationally aligned in one system. Microstrip and dipole workflows share backend contracts while preserving domain-specific behavior. The physics-calculator module improves interpretability and helps reduce avoidable simulation runs by allowing equation-level checks before numerical execution.
+
+\section{Future Work}
+Future work should define a strict radiation-data schema across OpenEMS, CST, and MATLAB outputs so far-field datasets can be consumed uniformly. This is the key step toward Unity integration for interactive 3D radiation lobes with frequency sweeps, polarization toggles, and overlay-based comparison of solver and model outputs.
+
+\section{Conclusion}
+AntennaTwin establishes a complete machine learning--enhanced digital twin framework linking CST and MATLAB data generation, OpenEMS full-wave simulation, surrogate training, and equation-assisted interpretation for both microstrip and dipole antennas. The project shows that a single coherent architecture can preserve both speed and rigor when model and simulation paths are intentionally integrated. By maintaining a deterministic API contract and a consistent frontend interaction model, the platform reduces friction in iterative RF design and makes result provenance easier to audit.
+
+The implementation also demonstrates scalability in both software and methodology. Backend services can accommodate additional antenna families and optimization strategies without changing the core interaction pattern, while frontend calculator and designer modules can be expanded through catalog-driven additions. The figure ordering and narrative in this report make the development logic explicit: data generation leads to simulation evidence, simulation evidence supports training, training enables model inference, and physics tools provide interpretive context.
+
+Most importantly, the work creates a practical foundation for future digital-twin visualization in Unity. By incorporating CST and MATLAB far-field exports into a standardized post-processing route, the platform can evolve from 2D result panels to interactive 3D electromagnetic views, improving both educational understanding and engineering review quality. In this sense, AntennaTwin is not only a working prototype but also a robust baseline for advanced RF digital-twin research and deployment.
+
+\section*{Acknowledgment}
+The authors sincerely thank \textbf{Dr Suresh Kumar T R}, Associate Professor, School of Electronics Engineering (SENSE), Vellore Institute of Technology, Vellore, for his guidance, technical feedback, and continuous support throughout the development of this project.
+
+\begin{thebibliography}{99}
+\bibitem{r1} M. Grieves and J. Vickers, ``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,'' in \textit{Transdisciplinary Perspectives on Complex Systems}. Cham, Switzerland: Springer, 2017.
+\bibitem{r2} F. Tao, H. Zhang, A. Liu, and A. Nee, ``Digital twin in industry: State-of-the-art,'' \textit{IEEE Trans. Ind. Informat.}, vol. 15, no. 4, pp. 2405--2415, 2019.
+\bibitem{r3} A. Fuller \textit{et al.}, ``Digital twin: Enabling technologies, challenges and open research,'' \textit{IEEE Access}, vol. 8, pp. 108952--108971, 2020.
+\bibitem{r4} C. A. Balanis, \textit{Antenna Theory: Analysis and Design}, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+\bibitem{r5} D. M. Pozar, \textit{Microwave Engineering}, 4th ed. Hoboken, NJ, USA: Wiley, 2011.
+\bibitem{r6} T. Liebig \textit{et al.}, ``openEMS -- A free and open source EC-FDTD simulation platform,'' \textit{Int. J. Numer. Model.}, vol. 32, no. 6, 2019.
+\bibitem{r7} Dassault Syst\`emes, ``CST Studio Suite,'' 2024. [Online]. Available: \url{https://www.3ds.com/products/simulia/cst-studio-suite}
+\bibitem{r8} A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Prentice Hall, 2009.
+\bibitem{r9} S. Haykin, \textit{Adaptive Filter Theory}, 5th ed. Upper Saddle River, NJ, USA: Pearson, 2014.
+\bibitem{r10} J. R. James and P. S. Hall, \textit{Handbook of Microstrip Antennas}. London, U.K.: IEE, 1989.
+\bibitem{r11} C. E. Rasmussen and C. K. I. Williams, \textit{Gaussian Processes for Machine Learning}. Cambridge, MA, USA: MIT Press, 2006.
+\bibitem{r12} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{r13} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+\bibitem{r14} A. Taflove and S. C. Hagness, \textit{Computational Electrodynamics: The Finite-Difference Time-Domain Method}, 3rd ed. Boston, MA, USA: Artech House, 2005.
+\bibitem{r15} The MathWorks, Inc., ``Antenna Toolbox Documentation,'' 2024. [Online]. Available: \url{https://www.mathworks.com/help/antenna/}
+\bibitem{r16} R. Garg, P. Bhartia, I. Bahl, and A. Ittipiboon, \textit{Microstrip Antenna Design Handbook}. Norwood, MA, USA: Artech House, 2001.
+\bibitem{r17} Unity Technologies, ``Unity Manual,'' 2024. [Online]. Available: \url{https://docs.unity3d.com/Manual/}
+\bibitem{r18} R. Szeliski, \textit{Computer Vision: Algorithms and Applications}, 2nd ed. Cham, Switzerland: Springer, 2022.
+\bibitem{r19} FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+\bibitem{r20} React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\bibitem{r21} Uvicorn, ``Uvicorn ASGI Server Documentation,'' 2026. [Online]. Available: \url{https://www.uvicorn.org/}
+\bibitem{r22} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Adv. Neural Inf. Process. Syst.}, 2019.
+\end{thebibliography}
+\end{document}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\geometry{margin=1in}
+\graphicspath{{images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\definecolor{headingblue}{RGB}{0,0,150}
+
+\title{\textcolor{headingblue}{\textbf{AntennaTwin: A Machine Learning--Enhanced Digital Twin Platform}}\\
+\textcolor{headingblue}{\large Detailed Project Report}}
+\author{
+Pratik Kumar -- 24BML0027\\
+Shruti -- 24BML0033\\
+Uday Krishan Khandelwal -- 24BML0017\\
+Vellore Institute of Technology
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.52\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Abstract}
+This report presents \textit{AntennaTwin}, a machine learning--enhanced digital twin platform that unifies microstrip and dipole antenna workflows in a single environment. The system connects CST and MATLAB data generation, OpenEMS-based full-wave simulation, trained surrogate modeling, and frontend-driven design exploration so that users can move from parametric input to validated electromagnetic results with minimal context switching. The backend is implemented in FastAPI and provides modular APIs for prediction, EM simulation, and optimization-oriented flows, while the frontend in React and TypeScript offers guided design interfaces, S11 and metric visualization, and a broad physics-calculator module for equation-based reasoning. The project emphasizes engineering traceability by preserving the relationship between simulation datasets, model artifacts, and runtime predictions. In addition to current implementation outcomes, the report outlines a forward path for integrating CST and MATLAB far-field exports into Unity to enable interactive 3D radiation-pattern visualization and richer digital-twin interpretation.
+
+\section{Introduction}
+Modern antenna design requires balancing analytical understanding with simulation fidelity and iteration speed. Classical equations remain essential for initialization, but practical engineering decisions increasingly depend on full-wave validation and data-driven prediction under multiple design constraints. In many labs, these stages are spread across disconnected tools and scripts, which slows experimentation and makes reproducibility harder.
+
+AntennaTwin addresses this gap by creating a unified digital thread from data generation to design decisions. The platform supports microstrip and dipole families as first-class workflows, exposing both trained model and solver-backed paths from the same interface. This design allows users to perform quick screening with surrogate estimates and switch to high-fidelity OpenEMS simulation when confidence checks are required. The physics-calculator component further improves usability by grounding the workflow in textbook relations before numerical evaluation.
+
+\section{Problem Statement}
+Conventional RF workflows often suffer from three recurring problems: fragmented tools, unclear model boundaries, and limited cross-validation between solver outputs and UI-level decision support. Equation-only tools can be fast but may be inadequate for final parameter selection; simulation-only workflows can be accurate but slow for broad sweeps; model-only workflows can drift when designs leave the training envelope.
+
+The project therefore targets a practical integration problem: how to combine CST and MATLAB data generation, OpenEMS simulation, and machine learning prediction into one coherent system where output provenance remains clear. The goal is not to replace electromagnetic physics with ML, but to use ML and physics in complementary roles with transparent transitions between them.
+
+\section{Objectives}
+The first objective is to build an end-to-end platform that supports both microstrip and dipole design with consistent payloads, result views, and API behavior. The second objective is to establish a robust data lifecycle where simulation artifacts from CST and MATLAB feed model development and validation logic. The third objective is to include a broad, searchable physics calculator so users can relate equations and assumptions to simulation and model outputs. The fourth objective is to produce a foundation for 3D radiation visualization using Unity by standardizing far-field data exports and post-processing conventions.
+
+\section{System Architecture}
+\subsection{Layered Design}
+The platform is organized into four layers. The presentation layer provides landing, designer, and calculator pages. The service layer exposes FastAPI routers for simulation and prediction workflows. The computation layer executes surrogate inference and OpenEMS runs. The external-tool layer supports CST and MATLAB pipelines for S-parameter and far-field generation. This separation keeps UI iteration independent from solver internals while preserving a stable contract between components.
+
+\subsection{Operational Flow}
+Users begin by selecting microstrip or dipole mode and entering geometry and frequency parameters. The frontend serializes these values into schema-compliant payloads and calls backend endpoints for either trained-model prediction or OpenEMS simulation. Results are returned as S11 and metric structures and rendered in a consistent visualization layout. Physics-calculator tools can be used before or after simulation to verify expected parameter trends.
+
+\section{Methodology}
+\subsection{Data Generation and Simulation Baseline}
+The data lifecycle starts with solver-side generation. CST models and MATLAB batch scripts are used to create design sweeps and export S11 and far-field data products. These external artifacts provide broad coverage and help validate behavior across parameter ranges. OpenEMS is used within the backend path for full-wave verification in the deployed application workflow.
+
+\subsection{Model Training and Inference}
+Surrogate models are trained using simulation-derived datasets and used to predict key metrics such as S11 characteristics, gain, and efficiency. The training pipeline stores model artifacts in structured locations and supports runtime loading via backend inference services. This approach enables low-latency design exploration while maintaining compatibility with solver-grounded checks.
+
+\subsection{Analytical and Physics-Calculator Support}
+The physics-calculator module provides structured access to formulas across wire, aperture, reflector, array, printed, and special-purpose antenna categories. It is not treated as a replacement for simulation; instead, it provides an interpretable scaffold that improves parameter initialization, unit discipline, and post-result sanity checks.
+
+\section{Implementation Details}
+\subsection{Backend}
+FastAPI routers are organized around EM simulation, predictions, optimization support, and related services. The EM path supports OpenEMS for microstrip scenarios, while model services provide surrogate inference and design-assistance endpoints including dipole-related flows. Schema-driven request and response objects keep frontend integration deterministic.
+
+\subsection{Frontend}
+The frontend is implemented using React, TypeScript, and route-based page composition. Separate microstrip and dipole designer components manage form input, API dispatch, and results updates. The physics-calculator page includes searchable navigation and step-based selection, improving discoverability across a large formula catalog. UI updates prioritize engineering readability and low-friction iteration.
+
+\section{Results and Demonstration}
+To maintain narrative coherence, figures are organized in the same sequence as the development pipeline: \textbf{CST and MATLAB data generation}, followed by \textbf{simulation design outputs}, then \textbf{training-related evidence}, then \textbf{model outputs}, and finally \textbf{physics-calculator views}.
+
+\subsection{CST and MATLAB Data Generation}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST mc model.png}
+\caption{CST microstrip model used for parametric data generation.}
+\label{fig:cst-model}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST s11 graphs mc.png}
+\caption{CST S11 sweeps used for validation-oriented comparison.}
+\label{fig:cst-s11}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{matlab microstrip.png}
+\caption{MATLAB microstrip workflow output from batch processing.}
+\label{fig:matlab-microstrip}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Dipole matlab.png}
+\caption{MATLAB dipole workflow output from batch evaluation.}
+\label{fig:matlab-dipole}
+\end{figure}
+
+\subsection{Simulation Outputs}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc simulated design.png}
+\caption{Microstrip simulated design output.}
+\label{fig:mc-sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole simulated design.png}
+\caption{Dipole simulated design output.}
+\label{fig:dipole-sim}
+\end{figure}
+
+\subsection{Training Evidence}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{1200Simulationresult.jpeg}
+\caption{Large-batch simulation and training snapshot used in surrogate development.}
+\label{fig:training}
+\end{figure}
+
+\subsection{Model and Result Views}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output mc.png}
+\caption{Microstrip model output in the digital twin interface.}
+\label{fig:model-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output of dipole.png}
+\caption{Dipole model output in the digital twin interface.}
+\label{fig:model-dipole}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc result.png}
+\caption{Microstrip results with S11 and derived metrics.}
+\label{fig:mc-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole result.png}
+\caption{Dipole results with S11 and performance summary.}
+\label{fig:dipole-result}
+\end{figure}
+
+\subsection{Physics-Calculator Module}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal mc.png}
+\caption{Physics calculator focused on microstrip-related formulas.}
+\label{fig:phys-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal .png}
+\caption{General physics-calculator interface and category navigation.}
+\label{fig:phys-general}
+\end{figure}
+
+\section{Discussion}
+The platform demonstrates that data generation, full-wave simulation, and machine learning inference can be operationally aligned in one system. The microstrip and dipole workflows share common backend contracts while retaining domain-specific input semantics. This architectural consistency lowers maintenance overhead and improves user confidence because design intent and output interpretation remain stable across modes.
+
+The physics-calculator component adds important educational and practical value. By letting users verify formula-level expectations before solver execution, it reduces avoidable runs and clarifies why certain designs behave as they do. At the same time, the project confirms that solver-backed validation remains essential, particularly when geometry choices move away from well-covered training regions.
+
+\section{Future Work}
+Future work should formalize a unified radiation-data schema for OpenEMS, CST, and MATLAB outputs, including theta-phi grids, gain normalization, frequency metadata, and polarization descriptors. With this schema, Unity integration can support interactive radiation lobes, frequency sliders, threshold-based clipping, and comparative overlays between model and solver outputs. Additional priorities include model version governance, uncertainty calibration, and measurement-driven retraining loops.
+
+\section{Conclusion}
+AntennaTwin successfully establishes a machine learning--enhanced digital twin framework that links CST and MATLAB data generation, OpenEMS simulation, trained surrogate inference, and equation-driven analysis for both microstrip and dipole antenna workflows. The key contribution is not a single model or solver script, but the integration strategy that makes these methods interoperable in a practical engineering environment. By maintaining a consistent interface and API contract from input capture to result interpretation, the platform enables faster design iteration without sacrificing simulation traceability. The figure sequence and implementation evidence in this report show that the pipeline is coherent from dataset creation through model deployment and formula-assisted reasoning.
+
+The project also demonstrates strong extensibility. Because backend services are modular and frontend workflows are catalog-driven, additional antenna families, solver backends, and optimization routines can be integrated incrementally. The planned CST/MATLAB-to-Unity radiation path is particularly impactful: it will transform static far-field outputs into interactive 3D visual analytics, improving both education and design review quality. In this sense, AntennaTwin is already a functional prototype and also a scalable foundation for advanced electromagnetic digital-twin applications.
+
+\section*{Acknowledgment}
+The authors sincerely thank \textbf{Dr Suresh Kumar T R}, Associate Professor, School of Electronics Engineering (SENSE), Vellore Institute of Technology, Vellore, for his guidance, technical feedback, and continuous support throughout the development of this project.
+
+\begin{thebibliography}{99}
+\bibitem{r1} M. Grieves and J. Vickers, ``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,'' in \textit{Transdisciplinary Perspectives on Complex Systems}. Cham, Switzerland: Springer, 2017.
+\bibitem{r2} F. Tao, H. Zhang, A. Liu, and A. Nee, ``Digital twin in industry: State-of-the-art,'' \textit{IEEE Trans. Ind. Informat.}, vol. 15, no. 4, pp. 2405--2415, 2019.
+\bibitem{r3} A. Fuller \textit{et al.}, ``Digital twin: Enabling technologies, challenges and open research,'' \textit{IEEE Access}, vol. 8, pp. 108952--108971, 2020.
+\bibitem{r4} C. A. Balanis, \textit{Antenna Theory: Analysis and Design}, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+\bibitem{r5} D. M. Pozar, \textit{Microwave Engineering}, 4th ed. Hoboken, NJ, USA: Wiley, 2011.
+\bibitem{r6} T. Liebig \textit{et al.}, ``openEMS -- A free and open source EC-FDTD simulation platform,'' \textit{Int. J. Numer. Model.}, vol. 32, no. 6, 2019.
+\bibitem{r7} Dassault Syst\`emes, ``CST Studio Suite,'' 2024. [Online]. Available: \url{https://www.3ds.com/products/simulia/cst-studio-suite}
+\bibitem{r8} A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Prentice Hall, 2009.
+\bibitem{r9} S. Haykin, \textit{Adaptive Filter Theory}, 5th ed. Upper Saddle River, NJ, USA: Pearson, 2014.
+\bibitem{r10} J. R. James and P. S. Hall, \textit{Handbook of Microstrip Antennas}. London, U.K.: IEE, 1989.
+\bibitem{r11} C. E. Rasmussen and C. K. I. Williams, \textit{Gaussian Processes for Machine Learning}. Cambridge, MA, USA: MIT Press, 2006.
+\bibitem{r12} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{r13} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+\bibitem{r14} A. Taflove and S. C. Hagness, \textit{Computational Electrodynamics: The Finite-Difference Time-Domain Method}, 3rd ed. Boston, MA, USA: Artech House, 2005.
+\bibitem{r15} The MathWorks, Inc., ``Antenna Toolbox Documentation,'' 2024. [Online]. Available: \url{https://www.mathworks.com/help/antenna/}
+\bibitem{r16} R. Garg, P. Bhartia, I. Bahl, and A. Ittipiboon, \textit{Microstrip Antenna Design Handbook}. Norwood, MA, USA: Artech House, 2001.
+\bibitem{r17} Unity Technologies, ``Unity Manual,'' 2024. [Online]. Available: \url{https://docs.unity3d.com/Manual/}
+\bibitem{r18} R. Szeliski, \textit{Computer Vision: Algorithms and Applications}, 2nd ed. Cham, Switzerland: Springer, 2022.
+\bibitem{r19} FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+\bibitem{r20} React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\bibitem{r21} Uvicorn, ``Uvicorn ASGI Server Documentation,'' 2026. [Online]. Available: \url{https://www.uvicorn.org/}
+\bibitem{r22} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Adv. Neural Inf. Process. Syst.}, 2019.
+\end{thebibliography}
+
+\end{document}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{fancyhdr}
+\usepackage{enumitem}
+
+\geometry{margin=1in}
+\graphicspath{{images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\definecolor{headingblue}{RGB}{0,0,150}
+
+\title{\textcolor{headingblue}{\textbf{Antenna Digital Twin}}\\
+\textcolor{headingblue}{\large Detailed Project Report}}
+\author{
+Pratik Kumar\\
+Vellore Institute of Technology
+}
+\date{\today}
+
+\begin{document}
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.52\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Abstract}
+This report presents a complete \textit{Antenna Digital Twin} platform that unifies microstrip and dipole design workflows in one engineering environment. The system integrates analytical calculators, trained surrogate models, and full-wave simulation so users can move from quick first-order estimates to high-fidelity validation without changing tools. A FastAPI backend exposes prediction, simulation, optimization, and validation endpoints, while a React and TypeScript frontend provides design input panels, S11 and metric visualization, and a dedicated physics calculator for broad antenna categories. In the current implementation, microstrip and dipole geometry can be explored with model-assisted interaction and OpenEMS-backed analysis, while CST and MATLAB workflows are included for batch data generation and solver-side cross-checking. The project demonstrates how digital twin principles reduce design iteration time and improve traceability by connecting equations, model outputs, and simulation evidence through a single interface. It also establishes a practical roadmap for integrating CST and MATLAB far-field data into Unity so radiation patterns can be visualized interactively in three dimensions.
+
+\section{Introduction}
+Antenna design is traditionally iterative and multidisciplinary. Engineers begin with analytical approximations, proceed to numerical simulation, and finally reconcile design intent with measured or solver-generated results. This sequence is scientifically robust, but in practice it can be slow and fragmented when each stage is handled in separate tools with inconsistent data formats. Digital twin concepts address this problem by maintaining a persistent, computable representation of the antenna state, where geometry, material properties, excitation settings, and predicted responses remain linked through the lifecycle \cite{r1,r2,r3}. In this project, that concept is implemented directly for RF design workflows by combining frontend-driven design capture, backend model and simulation services, and structured result visualization.
+
+The system focuses on two practical families: microstrip patch antennas and dipole antennas. Microstrip designs are widely used in compact wireless hardware and require strong control of substrate effects, feed placement, and resonance tuning. Dipole designs remain fundamental in both education and applications because they expose clear relationships between electrical length, impedance behavior, and radiation characteristics \cite{r4,r5}. By supporting both families in one platform, the project demonstrates a generalized architecture rather than a single-use calculator. The same API and UI patterns are reused for model inference, solver execution, and workflow guidance.
+
+Another central goal is usability for rapid engineering iteration. A physics calculator module provides structured access to antenna equations across wire, aperture, reflector, array, printed, and special-purpose categories. This helps users validate intuition before running heavier simulation tasks and creates a transparent bridge between textbook relations and data-driven outputs. The result is a coherent design environment where analytical reasoning, surrogate prediction, and full-wave validation complement each other instead of competing.
+
+\section{Problem Statement}
+Current antenna design practice often suffers from workflow fragmentation and poor interoperability between tools. Equation-based sizing can be fast but is typically disconnected from simulation scripts and model-driven optimization utilities. Surrogate models can accelerate decision making, but confidence degrades outside training envelopes unless simulation-grade checks are readily available. Full-wave solvers provide reliable electromagnetic insight, yet repeated manual setup can increase turnaround time for parametric exploration. These issues become more pronounced when teams want to compare multiple solver ecosystems such as OpenEMS, CST, and MATLAB post-processing in one project context.
+
+This project addresses the problem by creating a unified digital twin stack where frontend interaction, backend inference, and backend simulation share common data contracts. The microstrip and dipole paths are exposed as first-class workflows rather than ad hoc scripts, and result panels are designed to show S11 and derived metrics in a consistent way. The intent is not to replace electromagnetic simulation, but to make simulation and models operationally compatible so engineering teams can use fast approximations and high-fidelity computation together.
+
+\section{Objectives}
+The primary objective is to build an end-to-end, extensible antenna digital twin platform that supports both rapid design iteration and solver-backed validation. This includes implementing robust backend services for prediction and simulation, creating an intuitive frontend for geometry and frequency inputs, and ensuring that outputs are interpretable for practical RF decision making. A second objective is to include a broad physics calculator capability so users can move from textbook relations to implementation decisions without leaving the environment. A third objective is to establish integration readiness for CST and MATLAB data pipelines, especially for far-field radiation exports that can be consumed by Unity for 3D visual exploration.
+
+Beyond feature delivery, the project aims to provide reproducible workflows. Model training scripts, solver calls, and result storage patterns are organized so users can understand where each value originates and when high-fidelity simulation should be prioritized. This traceability is essential for transforming a prototype interface into a credible engineering tool.
+
+\section{System Architecture}
+\subsection{High-Level Layers}
+The architecture is organized into presentation, service, computation, and external-tool layers. The presentation layer is implemented in React and TypeScript and handles landing navigation, microstrip and dipole designers, result panels, and the physics calculator page. The service layer is implemented in FastAPI and exposes versioned routes for simulation, predictions, optimization, calibration, and training. The computation layer contains surrogate model inference components and OpenEMS solver integration. The external-tool layer includes CST and MATLAB workflows for batch simulation artifacts and cross-tool verification.
+
+This layered approach allows each subsystem to evolve independently while keeping the user experience coherent. Frontend components focus on interaction and visualization, backend routes focus on deterministic processing, and solver/model modules focus on computational correctness.
+
+\subsection{End-to-End Design Flow}
+The typical flow begins when a user selects either microstrip or dipole mode and enters geometric and material parameters. The frontend builds a structured payload and sends it to the backend, where the request is routed either to trained model inference or to OpenEMS simulation depending on operation mode. The returned S11 and metric data are then normalized into UI-ready structures and rendered in plots and tables. In parallel, the physics calculator can be used to check expected trends and sanity bounds before or after simulation.
+
+For CST and MATLAB workflows, batch scripts export S-parameter and far-field data in CSV form. These exports are designed to align with the same result-viewing philosophy, so external solver evidence can be compared against model and OpenEMS outputs in a consistent workflow.
+
+\section{Methodology}
+\subsection{Analytical Baseline}
+Analytical relations are used to initialize parameter ranges and interpret outputs. For microstrip, resonant behavior is approximated through effective-permittivity formulations. For dipoles, first-order half-wavelength electrical length provides initial tuning guidance. These relations are not treated as final truth, but as structured priors that reduce unnecessary search and improve input quality before simulation \cite{r4,r5,r10,r16}.
+
+\begin{equation}
+f_r \approx \frac{c}{2L\sqrt{\epsilon_{\mathrm{eff}}}}, \qquad L_{\mathrm{dipole}} \approx \frac{\lambda}{2}
+\end{equation}
+
+\subsection{Surrogate Modeling Strategy}
+The surrogate path predicts key targets such as S11 behavior, gain, and efficiency with low latency. Model families are trained through scriptable pipelines using simulation-derived datasets and persisted artifacts, with compatibility provisions for loading across environment changes. This approach supports rapid UI interaction and inverse-design style exploration while preserving a clear separation between data generation and inference serving \cite{r11,r12,r13,r22}.
+
+\subsection{Full-Wave Simulation Strategy}
+When high fidelity is required, the backend dispatches OpenEMS simulation runs through the EM API path. This provides physics-grounded validation and enables direct comparison against surrogate predictions for selected designs \cite{r6,r14}. OpenEMS execution is particularly useful when geometries move near boundaries where model generalization is uncertain.
+
+\subsection{CST and MATLAB Data Workflow}
+CST and MATLAB are used to build additional solver evidence and export reusable datasets. MATLAB batch scripts are configured to sweep S11 around target frequencies and export 3D far-field samples with E-plane and H-plane cuts. These artifacts form the basis for a solver-agnostic post-processing layer and future Unity visualization.
+
+\section{Implementation Details}
+\subsection{Backend Services}
+The backend is centered on FastAPI with modular routers. Prediction routes process model-based requests for both direct estimation and dipole-oriented design assistance. EM routes execute solver workflows and return simulation-structured outputs. Additional modules handle optimization, calibration, validation, and training utilities, enabling the platform to operate as both an interactive design interface and a model development environment.
+
+Schema-driven payload handling is used to maintain consistency across endpoints. This is essential for supporting both microstrip and dipole encodings while minimizing frontend branching complexity.
+
+\subsection{Frontend Experience}
+The frontend is routed through a landing dashboard and dedicated pages for microstrip, dipole, and physics calculators. The microstrip and dipole designer components capture parameters, dispatch API calls, and render S11 plus metrics. The layout includes sidebar navigation and result-view panes to keep interaction predictable and scalable.
+
+Recent UX refinements in this project include clearer result-action semantics, improved landing-page structure, and a two-pane physics-calculator layout that separates calculator selection from active computation display.
+
+\subsection{Physics Calculator Coverage}
+The physics calculator module is implemented as a catalog-driven system with section, type, and subtype navigation. It currently covers a large set of antenna families and utility formulas, and includes a search mechanism for direct calculator access. This feature is important for early-phase reasoning, unit checking, and expected-trend validation before invoking model or solver runs.
+
+\section{Results and Demonstration}
+The project demonstrates coherent output behavior across model-driven and solver-driven workflows. Microstrip and dipole result screens provide S11 response and metric summaries under a consistent UI scheme, while CST and MATLAB images confirm that external solver assets can be incorporated into the reporting and validation process.
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output mc.png}
+\caption{Microstrip model output in the digital twin interface.}
+\label{fig:model-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output of dipole.png}
+\caption{Dipole model output in the interface.}
+\label{fig:model-dipole}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc result.png}
+\caption{Microstrip result view with S11 and computed metrics.}
+\label{fig:mc-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole result.png}
+\caption{Dipole result visualization and metric summary.}
+\label{fig:dipole-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST s11 graphs mc.png}
+\caption{CST-generated S11 graphs for microstrip validation runs.}
+\label{fig:cst-s11}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{1200Simulationresult.jpeg}
+\caption{Large-batch simulation/training result snapshot used for surrogate development.}
+\label{fig:1200sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST mc model.png}
+\caption{CST microstrip model setup used for solver-side validation.}
+\label{fig:cst-model}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc simulated design.png}
+\caption{Microstrip simulated design output.}
+\label{fig:mc-sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole simulated design.png}
+\caption{Dipole simulated design output.}
+\label{fig:dipole-sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{matlab microstrip.png}
+\caption{MATLAB microstrip batch-processing workflow output.}
+\label{fig:matlab-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Dipole matlab.png}
+\caption{MATLAB dipole workflow output for batch evaluation.}
+\label{fig:matlab-dipole}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal mc.png}
+\caption{Physics calculator support for microstrip-oriented formulas.}
+\label{fig:phys-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal .png}
+\caption{General physics calculator interface for antenna equations and quick checks.}
+\label{fig:phys-general}
+\end{figure}
+
+\section{Discussion}
+The implemented system confirms that surrogate modeling and full-wave simulation can be combined in a single digital twin product without sacrificing usability. Microstrip and dipole paths share common platform services yet retain their own design semantics, which validates the extensibility of the architecture. The physics calculator further strengthens the workflow by reducing disconnect between foundational equations and simulation-driven decision making.
+
+From an engineering perspective, the largest practical advantage is iteration speed with traceability. Users can quickly test ideas in the UI, validate against solver runs, and preserve result context across tools. At the same time, model reliability remains data-dependent, which means training coverage and explicit uncertainty communication should continue to be improved in future versions.
+
+\section{Future Work}
+Future development should prioritize a standardized radiation-data contract across OpenEMS, CST, and MATLAB outputs so far-field datasets can be ingested uniformly. With this foundation, Unity integration can render interactive 3D radiation lobes with frequency sweeps, polarization toggles, and threshold-based gain surfaces \cite{r17,r18}. The same pipeline can support side-by-side comparisons of model predictions and solver-derived fields, improving interpretability for design reviews.
+
+Additional work should include tighter model governance, automated drift checks, dataset versioning, and measurement-driven recalibration loops. These steps would improve trust and reproducibility, especially when the platform is used for larger experimental campaigns.
+
+\section{Conclusion}
+This project delivers a functional, extensible antenna digital twin that bridges analytical formulas, trained models, and electromagnetic simulation for both microstrip and dipole antennas. The platform demonstrates that design productivity and simulation rigor can coexist when frontend interaction, backend APIs, and solver workflows are intentionally integrated. With the planned CST and MATLAB to Unity radiation-visualization path, the system is positioned to evolve from a design tool into a fully interactive electromagnetic twin framework for advanced RF prototyping and education.
+
+\section*{Acknowledgment}
+The author thanks faculty mentors, collaborators, and lab support teams who contributed to implementation feedback and validation workflows.
+
+\begin{thebibliography}{99}
+\bibitem{r1} M. Grieves and J. Vickers, ``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,'' in \textit{Transdisciplinary Perspectives on Complex Systems}. Cham, Switzerland: Springer, 2017.
+\bibitem{r2} F. Tao, H. Zhang, A. Liu, and A. Nee, ``Digital twin in industry: State-of-the-art,'' \textit{IEEE Trans. Ind. Informat.}, vol. 15, no. 4, pp. 2405--2415, 2019.
+\bibitem{r3} A. Fuller \textit{et al.}, ``Digital twin: Enabling technologies, challenges and open research,'' \textit{IEEE Access}, vol. 8, pp. 108952--108971, 2020.
+\bibitem{r4} C. A. Balanis, \textit{Antenna Theory: Analysis and Design}, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+\bibitem{r5} D. M. Pozar, \textit{Microwave Engineering}, 4th ed. Hoboken, NJ, USA: Wiley, 2011.
+\bibitem{r6} T. Liebig \textit{et al.}, ``openEMS -- A free and open source EC-FDTD simulation platform,'' \textit{Int. J. Numer. Model.}, vol. 32, no. 6, 2019.
+\bibitem{r7} Dassault Syst\`emes, ``CST Studio Suite,'' 2024. [Online]. Available: \url{https://www.3ds.com/products/simulia/cst-studio-suite}
+\bibitem{r8} A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Prentice Hall, 2009.
+\bibitem{r9} S. Haykin, \textit{Adaptive Filter Theory}, 5th ed. Upper Saddle River, NJ, USA: Pearson, 2014.
+\bibitem{r10} J. R. James and P. S. Hall, \textit{Handbook of Microstrip Antennas}. London, U.K.: IEE, 1989.
+\bibitem{r11} C. E. Rasmussen and C. K. I. Williams, \textit{Gaussian Processes for Machine Learning}. Cambridge, MA, USA: MIT Press, 2006.
+\bibitem{r12} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{r13} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+\bibitem{r14} A. Taflove and S. C. Hagness, \textit{Computational Electrodynamics: The Finite-Difference Time-Domain Method}, 3rd ed. Boston, MA, USA: Artech House, 2005.
+\bibitem{r15} The MathWorks, Inc., ``Antenna Toolbox Documentation,'' 2024. [Online]. Available: \url{https://www.mathworks.com/help/antenna/}
+\bibitem{r16} R. Garg, P. Bhartia, I. Bahl, and A. Ittipiboon, \textit{Microstrip Antenna Design Handbook}. Norwood, MA, USA: Artech House, 2001.
+\bibitem{r17} Unity Technologies, ``Unity Manual,'' 2024. [Online]. Available: \url{https://docs.unity3d.com/Manual/}
+\bibitem{r18} R. Szeliski, \textit{Computer Vision: Algorithms and Applications}, 2nd ed. Cham, Switzerland: Springer, 2022.
+\bibitem{r19} FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+\bibitem{r20} React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\bibitem{r21} Uvicorn, ``Uvicorn ASGI Server Documentation,'' 2026. [Online]. Available: \url{https://www.uvicorn.org/}
+\bibitem{r22} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Adv. Neural Inf. Process. Syst.}, 2019.
+\end{thebibliography}
+
+\end{document}
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{geometry}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+
+\geometry{margin=1in}
+\graphicspath{{images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\definecolor{headingblue}{RGB}{0,0,150}
+
+\title{\textcolor{headingblue}{\textbf{Antenna Digital Twin}}\\
+\textcolor{headingblue}{\large Detailed Project Report}}
+\author{
+Pratik Kumar\\
+Vellore Institute of Technology
+}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.52\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\tableofcontents
+\newpage
+
+\section{Abstract}
+This report presents a full-stack \textit{Antenna Digital Twin} platform for microstrip patch and dipole antennas. The system combines (i) analytical calculators, (ii) fast surrogate-model prediction, and (iii) full-wave electromagnetic simulation using OpenEMS, with extension workflows for CST Studio and MATLAB post-processing. The backend is implemented using FastAPI with model inference, optimization, calibration support, and simulation endpoints, while the frontend provides a modern engineering interface for design entry, S11 visualization, and results inspection. A dedicated physics-calculator module organizes antenna equations across wire, aperture, reflector, array, and printed antennas. The project also defines a practical roadmap for integrating CST/MATLAB far-field outputs with Unity for interactive radiation-pattern visualization. The overall objective is to reduce antenna design iteration time while preserving traceability to EM-grade validation.
+
+\section{Introduction}
+Antenna design typically involves repeated cycles of first-principles estimation, numerical simulation, and measurement. Full-wave simulation offers high fidelity but can be slow for repeated parameter sweeps. Surrogate models provide speed but require careful data curation and uncertainty-aware deployment. Digital twin principles enable these methods to be fused into a single workflow where fast prediction and high-fidelity simulation coexist \cite{r1,r2,r3}.
+
+For microstrip and wire antennas, practical design requires balancing resonance accuracy, bandwidth, impedance match, gain, and fabrication constraints. Standard references and simulation practices remain foundational \cite{r4,r5,r6,r7}, but modern engineering teams increasingly benefit from integrated software platforms that unify calculators, simulation orchestration, and UI-based analysis \cite{r8,r9}. This project addresses that need with an end-to-end implementation targeted at educational and engineering prototyping use.
+
+\section{Problem Statement}
+Conventional antenna workflows are fragmented:
+\begin{itemize}[itemsep=0.2em]
+  \item Equation-based estimation is often disconnected from simulation software.
+  \item Fast model-based tools may hide uncertainty or operate outside training bounds.
+  \item Full-wave tools (OpenEMS/CST/MATLAB exports) are not always integrated into a single interactive dashboard.
+\end{itemize}
+The project goal is to build one coherent environment where users can move from formula-level sizing to EM-backed validation and future 3D radiation visualization.
+
+\section{Objectives}
+\begin{itemize}[itemsep=0.2em]
+  \item Build a complete microstrip/dipole digital twin with backend + frontend.
+  \item Provide trained-model inference for fast S11, gain, and efficiency estimates.
+  \item Support OpenEMS simulation execution for high-fidelity results.
+  \item Add broad RF equation coverage through a searchable physics-calculator module.
+  \item Prepare CST/MATLAB result pipelines for Unity radiation-pattern visualization.
+\end{itemize}
+
+\section{System Architecture}
+\subsection{High-Level Layers}
+The platform follows a layered architecture:
+\begin{enumerate}[itemsep=0.2em]
+  \item \textbf{Presentation Layer:} React + TypeScript UI for landing, antenna designers, calculator modules, and result views.
+  \item \textbf{Service Layer:} FastAPI API routers for prediction, EM simulation, optimization, calibration, and state transfer.
+  \item \textbf{Model/Simulation Layer:} surrogate models (ensemble predictors) and OpenEMS execution path.
+  \item \textbf{External Tool Layer:} CST + MATLAB workflows for batch far-field/S-parameter exports.
+\end{enumerate}
+
+\subsection{Design Flow}
+\begin{enumerate}[itemsep=0.2em]
+  \item User selects antenna family (microstrip or dipole).
+  \item Geometry/material/frequency inputs are submitted through UI.
+  \item Request is routed to either surrogate predictor or OpenEMS endpoint.
+  \item Results are rendered as S11 curves, metrics, and derived indicators.
+  \item Optional workflow exports/ingests CST-MATLAB outputs for future 3D twin rendering.
+\end{enumerate}
+
+\section{Methodology}
+\subsection{Analytical Initialization}
+Patch and dipole designs start with textbook relations for resonant dimension and electrical length:
+\begin{equation}
+f_r \approx \frac{c}{2L\sqrt{\epsilon_{\mathrm{eff}}}}
+\end{equation}
+\begin{equation}
+L_{\mathrm{dipole}} \approx \frac{\lambda}{2}
+\end{equation}
+These equations provide initialization and sanity checks before simulation \cite{r4,r5,r10}.
+
+\subsection{Surrogate Modeling}
+The model pipeline trains separate predictors for key targets (\texttt{s11\_min}, gain, efficiency), using ensemble methods and GP-compatible uncertainty handling \cite{r11,r12,r13}. For inference speed, model artifacts are loaded on demand and cached at runtime.
+
+\subsection{OpenEMS Integration}
+For higher-fidelity runs, the backend calls OpenEMS through solver adapters and stores simulation results for frontend display. OpenEMS is widely used for open-source FDTD workflows in antenna problems \cite{r6,r14}.
+
+\subsection{CST/MATLAB Workflow}
+Batch MATLAB scripts process antenna variants from CSV input and export:
+\begin{itemize}[itemsep=0.2em]
+  \item S11 sweeps,
+  \item 3D far-field grids,
+  \item E-plane/H-plane cuts.
+\end{itemize}
+This establishes a solver-agnostic data path for external simulation ecosystems \cite{r7,r15,r16}.
+
+\section{Implementation Details}
+\subsection{Backend}
+The FastAPI backend exposes versioned routes for:
+\begin{itemize}[itemsep=0.2em]
+  \item \texttt{/api/v1/em/*} for EM simulation,
+  \item \texttt{/api/v1/predictions/*} for surrogate inference and inverse design,
+  \item optimization, calibration, validation, and training endpoints.
+\end{itemize}
+Data models are schema-validated and designed for compatibility with both microstrip and dipole encodings.
+
+\subsection{Frontend}
+The frontend provides:
+\begin{itemize}[itemsep=0.2em]
+  \item landing dashboard and twin selection,
+  \item microstrip and dipole designer pages,
+  \item physics-calculator page with section/type/subtype search and routing,
+  \item result visualizations for S11 and metrics.
+\end{itemize}
+The UI is designed for rapid iteration and engineering readability.
+
+\subsection{Physics Calculator Module}
+The calculator module organizes RF relations into multiple sections (wire, aperture, reflector, array, microstrip, traveling-wave, lens, frequency-independent, special-purpose). It supports searchable navigation and unit-aware output rendering, enabling quick pre-simulation checks.
+
+\section{Results and Demonstration}
+\subsection{Simulation and Model Outputs}
+Representative project outputs show consistent workflow coverage from model prediction to simulation-backed results.
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output mc.png}
+\caption{Microstrip model output in the digital twin interface.}
+\label{fig:model-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{model output of dipole.png}
+\caption{Dipole model output in the interface.}
+\label{fig:model-dipole}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc result.png}
+\caption{Microstrip result view with S11 and computed metrics.}
+\label{fig:mc-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole result.png}
+\caption{Dipole result visualization and metric summary.}
+\label{fig:dipole-result}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST s11 graphs mc.png}
+\caption{CST-generated S11 graphs for microstrip validation runs.}
+\label{fig:cst-s11}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{1200Simulationresult.jpeg}
+\caption{Large-batch simulation/training result snapshot used for surrogate development.}
+\label{fig:1200sim}
+\end{figure}
+
+\subsection{Design and Solver Assets}
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{CST mc model.png}
+\caption{CST microstrip model setup used for solver-side validation.}
+\label{fig:cst-model}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{mc simulated design.png}
+\caption{Microstrip simulated design output.}
+\label{fig:mc-sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{dipole simulated design.png}
+\caption{Dipole simulated design output.}
+\label{fig:dipole-sim}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{matlab microstrip.png}
+\caption{MATLAB microstrip batch-processing workflow output.}
+\label{fig:matlab-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Dipole matlab.png}
+\caption{MATLAB dipole workflow output for batch evaluation.}
+\label{fig:matlab-dipole}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal mc.png}
+\caption{Physics calculator support for microstrip-oriented formulas.}
+\label{fig:phys-mc}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{phys cal .png}
+\caption{General physics calculator interface for antenna equations and quick checks.}
+\label{fig:phys-general}
+\end{figure}
+
+\section{Discussion}
+The implemented platform demonstrates that fast surrogate inference and full-wave simulation can coexist in a single engineering workflow. The physics-calculator module accelerates early-stage design decisions, while OpenEMS and CST/MATLAB paths provide higher-confidence validation channels. Key strengths include:
+\begin{itemize}[itemsep=0.2em]
+  \item rapid model-based response for iterative tuning,
+  \item solver-backed verification when precision is critical,
+  \item extensible architecture for additional antenna families.
+\end{itemize}
+Limitations include dataset dependence for surrogate quality, solver runtime for high-fidelity sweeps, and the need for stronger uncertainty visualization in UI.
+
+\section{Future Work}
+\begin{itemize}[itemsep=0.25em]
+  \item \textbf{Unified radiation data schema:} standardize theta/phi/gain/phase exports across OpenEMS, CST, and MATLAB.
+  \item \textbf{Unity 3D radiation twin:} integrate CST/MATLAB far-field CSV outputs into Unity for interactive lobe rendering, frequency scrubbing, and polarization overlays \cite{r17,r18}.
+  \item \textbf{Model governance:} add model versioning, drift checks, and calibration dashboards.
+  \item \textbf{Automated benchmarking:} compare surrogate vs OpenEMS vs CST runs per design envelope.
+  \item \textbf{Measurement loop closure:} ingest VNA/chamber data to continuously recalibrate surrogates.
+\end{itemize}
+
+\section{Conclusion}
+This project delivers a practical antenna digital twin platform that bridges formulas, ML surrogates, and EM simulation. The system already supports production-style design flows for microstrip and dipole antennas with clear frontend-backend separation and extensible APIs. With the planned CST/MATLAB-to-Unity radiation visualization pipeline, the framework can evolve into a complete interactive electromagnetic twin suitable for both education and advanced prototyping.
+
+\section*{Acknowledgment}
+The author thanks faculty mentors, lab staff, and collaborators who supported simulation setup, software integration, and report validation.
+
+\begin{thebibliography}{99}
+\bibitem{r1} M. Grieves and J. Vickers, ``Digital twin: Mitigating unpredictable, undesirable emergent behavior in complex systems,'' in \textit{Transdisciplinary Perspectives on Complex Systems}. Cham, Switzerland: Springer, 2017.
+\bibitem{r2} F. Tao, H. Zhang, A. Liu, and A. Nee, ``Digital twin in industry: State-of-the-art,'' \textit{IEEE Trans. Ind. Informat.}, vol. 15, no. 4, pp. 2405--2415, 2019.
+\bibitem{r3} A. Fuller \textit{et al.}, ``Digital twin: Enabling technologies, challenges and open research,'' \textit{IEEE Access}, vol. 8, pp. 108952--108971, 2020.
+\bibitem{r4} C. A. Balanis, \textit{Antenna Theory: Analysis and Design}, 4th ed. Hoboken, NJ, USA: Wiley, 2016.
+\bibitem{r5} D. M. Pozar, \textit{Microwave Engineering}, 4th ed. Hoboken, NJ, USA: Wiley, 2011.
+\bibitem{r6} T. Liebig \textit{et al.}, ``openEMS -- A free and open source EC-FDTD simulation platform,'' \textit{Int. J. Numer. Model.}, vol. 32, no. 6, 2019.
+\bibitem{r7} Dassault Syst\`emes, ``CST Studio Suite,'' 2024. [Online]. Available: \url{https://www.3ds.com/products/simulia/cst-studio-suite}
+\bibitem{r8} A. V. Oppenheim and R. W. Schafer, \textit{Discrete-Time Signal Processing}, 3rd ed. Upper Saddle River, NJ, USA: Prentice Hall, 2009.
+\bibitem{r9} S. Haykin, \textit{Adaptive Filter Theory}, 5th ed. Upper Saddle River, NJ, USA: Pearson, 2014.
+\bibitem{r10} J. R. James and P. S. Hall, \textit{Handbook of Microstrip Antennas}. London, U.K.: IEE, 1989.
+\bibitem{r11} C. E. Rasmussen and C. K. I. Williams, \textit{Gaussian Processes for Machine Learning}. Cambridge, MA, USA: MIT Press, 2006.
+\bibitem{r12} F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+\bibitem{r13} T. Chen and C. Guestrin, ``XGBoost: A scalable tree boosting system,'' in \textit{Proc. 22nd ACM SIGKDD}, 2016, pp. 785--794.
+\bibitem{r14} A. Taflove and S. C. Hagness, \textit{Computational Electrodynamics: The Finite-Difference Time-Domain Method}, 3rd ed. Boston, MA, USA: Artech House, 2005.
+\bibitem{r15} The MathWorks, Inc., ``Antenna Toolbox Documentation,'' 2024. [Online]. Available: \url{https://www.mathworks.com/help/antenna/}
+\bibitem{r16} R. Garg, P. Bhartia, I. Bahl, and A. Ittipiboon, \textit{Microstrip Antenna Design Handbook}. Norwood, MA, USA: Artech House, 2001.
+\bibitem{r17} Unity Technologies, ``Unity Manual,'' 2024. [Online]. Available: \url{https://docs.unity3d.com/Manual/}
+\bibitem{r18} R. Szeliski, \textit{Computer Vision: Algorithms and Applications}, 2nd ed. Cham, Switzerland: Springer, 2022.
+\bibitem{r19} FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+\bibitem{r20} React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\bibitem{r21} Uvicorn, ``Uvicorn ASGI Server Documentation,'' 2026. [Online]. Available: \url{https://www.uvicorn.org/}
+\bibitem{r22} A. Paszke \textit{et al.}, ``PyTorch: An imperative style, high-performance deep learning library,'' in \textit{Adv. Neural Inf. Process. Syst.}, 2019.
+\end{thebibliography}
+
+\end{document}
+% ICU Neuromorphic Monitoring Report
+% Styled to follow Sample.tex format
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{xcolor}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{multirow}
+
+\geometry{margin=1in}
+\graphicspath{{Images/}}
+\newcommand{\img}[2][]{\includegraphics[#1]{\detokenize{#2}}}
+
+% Page style similar to Sample.tex
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+\definecolor{headingblue}{RGB}{0,0,255}
+\titleformat{\section}
+{\normalfont\Large\bfseries\color{headingblue}}
+{\thesection}{1em}{}
+\titleformat{\subsection}
+{\normalfont\large\bfseries}
+{\thesubsection}{1em}{}
+
+\title{\textcolor{headingblue}{\textbf{AI-Assisted ICU Monitoring System with Custom Neuromorphic ECG Machine}}\\
+\textcolor{headingblue}{\large Detailed Project Report}\\
+\textcolor{headingblue}{\large Bachelor of Technology}\\
+\textcolor{headingblue}{\large in}\\
+\textcolor{headingblue}{\large Biomedical Engineering}}
+\author{
+AAKANKSHA SINGH - \textcolor{headingblue}{24BML0006}\\
+UDAY KRISHAN KHANDELWAL - \textcolor{headingblue}{24BML0017}\\
+PRATIK KUMAR - \textcolor{headingblue}{24BML0027}\\
+SHRUTI - \textcolor{headingblue}{24BML0033}\\
+ANWESHA JANA - \textcolor{headingblue}{24BML0036}\\
+VIDHI AGARWAL - \textcolor{headingblue}{24BML0081}\\
+\\
+SENSE School (School of Electronics Engineering)\\
+Vellore Institute of Technology, Vellore, Tamil Nadu
+}
+\date{}
+
+\begin{document}
+
+\maketitle
+\vfill
+\begin{center}
+\img[width=0.60\textwidth]{VIT_COLOURED LOGO.png}
+\end{center}
+\thispagestyle{empty}
+
+\newpage
+\thispagestyle{empty}
+\tableofcontents
+\newpage
+\setcounter{page}{1}
+
+\section{Abstract}
+
+This report presents an end-to-end AI-assisted ICU monitoring platform built around a custom neuromorphic ECG machine designed and integrated by our team. The system combines analog ECG acquisition, spike-based neuromorphic inference, and multi-sensor bedside monitoring into one real-time architecture. At hardware level, ECG is conditioned through instrumentation amplification and comparator-based spike generation; weighted inference is implemented through memristor-emulating resistive elements controlled by ESP32-class microcontrollers. At software level, a FastAPI backend receives authentic bedside streams and maintains per-bed and per-patient states, while a React frontend provides ward and detail dashboards with mobile-ready access for clinicians.
+
+The platform integrates ECG-derived classifications with heart rate, temperature, and additional vitals in a unified monitoring workflow. A global model provides robust default predictions, while patient-specific digital twin refinement can be applied when sufficient data are available. The report details system architecture, hardware realization, firmware flow, backend APIs, dashboard implementation, operational benefits, and mathematical formulations for preprocessing and inference. It also documents practical deployment through LAN-based access, allowing doctors to check patient condition from mobile devices in real time.
+
+\section{Introduction}
+
+Intensive care requires continuous, reliable, and interpretable monitoring. Conventional systems are often expensive and difficult to customize for research or educational innovation. Our project addresses this limitation by building a practical ICU stack that merges neuromorphic ECG edge intelligence with modern web-based clinical monitoring.
+
+The core idea is simple: create our own ECG machine, process cardiac signals through neuromorphic principles, and integrate outputs with multiple sensors in a central ICU interface. The resulting platform allows not only bedside analysis but also distributed observation, including phone-based monitoring for doctors.
+
+\subsection{Literature Review}
+
+Continuous ECG monitoring has long been recognized as a core requirement in critical care, but classical centralized monitor architectures often face trade-offs in scalability, interpretability, and deployment cost. Foundational public resources such as MIT-BIH and PhysioNet established reproducible baselines for arrhythmia research and enabled broad benchmarking across signal-processing and machine-learning approaches \cite{r1,r2}. Subsequent comparative work in ECG classification has shown that while deep neural models can provide high discrimination under curated conditions, linear and hybrid pipelines remain competitive when interpretability, deterministic runtime, and constrained hardware deployment are prioritized \cite{r3,r7,r8}. This is especially relevant for bedside systems that must maintain predictable behavior under network variability and power limits.
+
+Recent literature in ICU informatics emphasizes that value is not driven by model accuracy alone, but by workflow coherence across sensing, alerting, and clinician interaction \cite{r4,r5}. Multi-parameter early-warning systems improve decision support only when data streams are temporally aligned and context-preserving across admissions, bed transfers, and handoffs \cite{r6,r9}. In parallel, mobile and web-based ICU interfaces have gained traction because they shorten response loops during rounds and improve shared situational awareness among distributed care teams \cite{r10,r11}. However, many implementations still depend on heavyweight cloud-side inference, which introduces additional latency and infrastructure coupling for institutions with limited digital resources.
+
+Edge AI and embedded inference research therefore presents a practical alternative for portions of the monitoring stack. Lightweight microcontroller-based inference has matured with optimized embedded toolchains and improved low-power SoCs, making bedside preprocessing and event-level inference feasible without dedicated accelerators \cite{r12,r13}. For biomedical sensing, this trend is further supported by work on robust filtering, artifact suppression, and event-driven processing for noisy real-world streams \cite{r14,r15}. The key engineering challenge remains preserving alignment between software-trained decision functions and hardware-executed signal paths.
+
+Neuromorphic and in-memory computing literature provides the conceptual bridge for this alignment. Memristive and resistive-crossbar approaches demonstrate how weighted accumulation can be mapped to analog electrical behavior, reducing data movement and enabling low-latency inference primitives \cite{r16,r17,r18}. Practical prototypes frequently emulate memristive behavior with programmable resistive components during early development, allowing calibration and reproducibility before specialized devices are adopted \cite{r19}. This strategy aligns closely with our implementation, where model weights are mapped to programmable resistance states and evaluated through analog MAC readout.
+
+In addition to algorithmic and hardware advances, interoperability and clinical integration standards remain important for translation. Healthcare communication frameworks and physiological data models indicate that successful deployment requires traceable patient identity linkage, consistent timestamp semantics, and role-aware access patterns \cite{r20,r21}. Recent healthcare AI guidance also stresses transparent model behavior, audit-friendly logs, and clear boundaries between decision support and clinician authority \cite{r22,r23}. These principles influenced our architecture choices: patient-associated longitudinal logging, explicit endpoint-based state updates, and human-readable dashboard context.
+
+Overall, the literature supports a hybrid direction: combine robust classical preprocessing, lightweight and interpretable classification, edge-capable hardware realization, and workflow-first ICU software integration. Our project extends this direction by implementing a custom neuromorphic ECG machine linked to a multi-sensor AI-assisted ICU stack with mobile clinician access and per-patient state continuity \cite{r24,r25}.
+
+\subsection{Problem Statement}
+
+Current challenges in many monitoring setups include fragmented data sources, limited personalization, and dependency on proprietary systems. In practical care environments, ECG interpretation, bedside vitals, and decision support are frequently separated across tools, which delays recognition during critical events. Our project addresses this by creating a single integrated pipeline that links neuromorphic ECG inference with multi-sensor ICU monitoring and immediate visualization.
+\begin{itemize}
+  \item In-house neuromorphic ECG hardware and inference integration.
+  \item Unified ECG + vitals monitoring with real-time alert visibility.
+  \item Mobile-ready access for doctors over the same secure network.
+\end{itemize}
+
+\subsection{Project Objectives}
+
+The objective is to deliver a complete and usable ICU stack that starts from our custom ECG machine and continues through backend services and bedside user interfaces. The system is designed for reliable signal capture, low-latency inference, traceable patient-linked records, and practical clinical access.
+\begin{itemize}
+  \item Validate custom ECG acquisition and neuromorphic classification.
+  \item Integrate ECG, pulse heart rate, and temperature in one ICU flow.
+  \item Support clinician workflows on desktop and mobile interfaces.
+\end{itemize}
+
+\section{System Overview}
+
+\subsection{High-Level Architecture}
+
+The full stack contains three tightly coupled layers that transform bedside sensing into clinical decision support:
+\begin{itemize}
+  \item \textbf{Edge Hardware Layer:} ECG controller (ESP32), vitals controller (ESP8266), analog conditioning, comparator spike path, and memristor-emulating resistive MAC.
+  \item \textbf{Backend Service Layer:} FastAPI APIs for ICU operations, WebSocket summaries, risk prediction, alert engine, and state manager.
+  \item \textbf{Presentation Layer:} React/Vite frontend with multi-bed view, per-bed details, admission workflows, and doctor notes.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Full workspace setup.jpeg}
+\caption{Complete workspace setup used for integrated hardware-software ICU monitoring development}
+\label{fig:fullworkspace}
+\end{figure}
+
+\subsection{Operational Data Flow}
+
+\begin{enumerate}[itemsep=0.25em]
+  \item Sensors acquire ECG and vitals at bedside.
+  \item Controllers send timestamped payloads to ICU backend endpoints.
+  \item Backend updates bed/patient state, evaluates alerts, and serves summaries.
+  \item Frontend dashboards render live monitoring views for clinical users.
+\end{enumerate}
+
+\section{Methodology and Mathematical Formulation}
+
+The methodology integrates classical biomedical signal processing with hardware-aware inference mapping. Each stage is selected to keep behavior interpretable and reproducible between software training and edge execution, allowing practical verification during deployment.
+
+\subsection{Signal Preprocessing}
+
+Bandpass filtering and normalization are applied before spike encoding:
+\begin{equation}
+f_{L,\text{norm}}=\frac{f_L}{f_s/2}, \qquad f_{H,\text{norm}}=\frac{f_H}{f_s/2}
+\end{equation}
+\begin{equation}
+x'=\frac{x-x_{\min}}{x_{\max}-x_{\min}}
+\end{equation}
+
+\subsection{Windowing and Encoding}
+
+R-peak centered windows are converted into spike vectors using threshold/refractory logic. For rate encoding:
+\begin{equation}
+P(\text{spike}_i)=\tilde{x}_i \, r_{\max} \, \Delta t
+\end{equation}
+
+\subsection{Linear Decision Model}
+
+The linear model is computationally efficient and suitable for low-latency implementation. Its direct mapping between input activity and decision score also simplifies calibration with analog MAC outputs.
+
+\begin{equation}
+z=\mathbf{w}^{\top}\mathbf{x}+b,\qquad \hat{y}=\mathbb{I}[z>0]
+\end{equation}
+
+\subsection{Resistance Mapping}
+
+Mapping learned weights to physical resistance values enables practical deployment on programmable resistive hardware while preserving relative model contribution across channels.
+
+\begin{equation}
+R_i=R_{\min}+\frac{w_i-w_{\min}}{w_{\max}-w_{\min}}(R_{\max}-R_{\min})
+\end{equation}
+
+\subsection{Analog MAC Relation}
+
+This relation provides the electrical interpretation of weighted summation and is used during validation to compare expected and measured MAC responses.
+
+\begin{equation}
+V_{\text{MAC}}=-R_f\sum_i \frac{V_{\text{ref}}}{R_i}\,s_i
+\end{equation}
+
+\section{Custom Neuromorphic ECG Machine}
+
+\subsection{Hardware Design}
+
+Our ECG machine combines analog conditioning with neuromorphic inference in a compact edge pipeline:
+\begin{itemize}
+  \item AD620-based instrumentation amplification and conditioning.
+  \item LM393 comparator for spike-event generation.
+  \item CD4066 with programmable resistive weights for MAC-based inference.
+\end{itemize}
+
+\begin{figure}[H]
+\centering
+\img[width=0.9\textwidth]{Hardware setup.jpeg}
+\caption{Custom neuromorphic ECG hardware setup and integration bench}
+\label{fig:hardware}
+\end{figure}
+
+\subsection{Edge Inference Workflow}
+
+The firmware initializes drivers, loads a memristor map, programs resistance states, and then enters interrupt-driven inference mode. This keeps computation lightweight and temporally aligned with the ECG spike stream.
+\begin{itemize}
+  \item Comparator edge $\rightarrow$ spike event.
+  \item Spike processor fills fixed window.
+  \item Classifier computes class from weighted evidence.
+  \item Result is transmitted to backend and displayed in the ICU dashboard.
+\end{itemize}
+
+\section{Multi-Sensor ICU Monitoring Integration}
+
+\subsection{Sensors and Roles}
+
+The ICU monitoring path is synchronized across modalities so each signal contributes complementary information for bedside interpretation:
+\begin{itemize}
+  \item \textbf{Neuromorphic ECG stream:} beat classifications, MAC voltage, ECG segments.
+  \item \textbf{Pulse-derived heart rate:} peripheral sensor stream.
+  \item \textbf{Temperature and extensible vitals:} body temperature with provision for SpO$_2$, blood pressure, and respiratory rate.
+\end{itemize}
+
+\subsection{Bed and Patient Mapping}
+
+Every payload includes \texttt{bed\_id} and \texttt{patient\_id}, allowing strict per-patient isolation and consistent timeline reconstruction even when bed assignments change.
+
+\section{Backend Implementation}
+
+\subsection{API and State Management}
+
+The FastAPI backend exposes ICU routes for patient creation, assignment, vitals, classification, ECG segments, and summary retrieval. It stores per-bed rolling state and per-patient histories to preserve clinical context while enabling rapid ward-level refreshes. This distinction between bed state and patient timeline is essential when beds are reassigned, because historical continuity must remain tied to patient identity rather than room location.
+
+The API layer is designed for deterministic payloads and consistent rendering across devices. As a result, clinicians see the same interpretation context on desktop and mobile views, which improves trust and reduces interpretation drift during handoffs.
+
+\subsection{Alert and Risk Support}
+
+The backend includes threshold and trend alerting logic with configurable bounds for key vitals and event patterns. Rather than reacting only to isolated points, trend checks capture sustained deviations, which is more clinically meaningful in ICU environments.
+
+Optional mortality risk prediction from a pre-trained model adds a longitudinal context layer to real-time streams. This value is used as decision support, complementing ECG and vitals interpretation without replacing clinician judgment.
+
+\subsection{Logging and Traceability}
+
+Vitals are appended to patient-linked CSV files (for configured beds), preserving authentic longitudinal records useful for auditing and model refinement. This logging strategy supports both engineering validation and clinical review because each row remains associated with explicit bed and patient identifiers over time.
+
+\section{Frontend and Clinical Interface}
+
+The frontend is built to minimize cognitive switching in high-pressure monitoring conditions. It couples real-time telemetry with contextual workflow elements such as admission, notes, and prediction panels so decision making is not fragmented across tools.
+
+\subsection{Authentication and Admission}
+
+\begin{figure}[H]
+\centering
+\img[width=0.9\textwidth]{Admin Auth.png}
+\caption{Administrative authentication view before ICU access}
+\label{fig:auth}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.9\textwidth]{NEW ADMISSION.png}
+\caption{New patient admission workflow linked to bed assignment}
+\label{fig:admission}
+\end{figure}
+
+\subsection{Dashboard and Monitoring Views}
+
+Dashboard composition emphasizes continuity: waveform visibility, classification cues, and trend panels are presented in a coordinated layout so clinicians can move from overview to diagnosis quickly. The same visual language is preserved across beds to support predictable operations in multi-bed scenarios.
+
+\begin{figure}[H]
+\centering
+\img[width=0.95\textwidth]{Full ICU bed dashboard.png}
+\caption{Desktop ICU bed dashboard with live ECG, vitals, and alert context}
+\label{fig:fulldesktop}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.85\textwidth]{Bed 2 Dashboard.png}
+\caption{Multi-bed scalability demonstrated through Bed 2 dashboard view}
+\label{fig:bed2desktop}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.9\textwidth]{ML prediction.png}
+\caption{ML prediction panel integrated into ICU decision support}
+\label{fig:mlpanel}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.9\textwidth]{Doctors notes.png}
+\caption{Doctor notes panel for bedside clinical documentation}
+\label{fig:notes}
+\end{figure}
+
+\subsection{Mobile Monitoring for Doctors}
+
+One of the major practical advantages of this system is mobile accessibility. The startup stack binds frontend and backend to LAN interfaces and prints network URLs, allowing doctors on the same network to open patient dashboards from mobile devices.
+
+This design supports bedside mobility during rounds and procedures, where immediate access to trends and alerts is often more useful than static station-only monitoring.
+
+From a workflow perspective, mobile access reduces the delay between event occurrence and clinical awareness. Instead of relying on verbal relay from a fixed monitoring desk, attending doctors can directly inspect rhythm changes, risk indicators, and trend trajectories while moving across beds. This improves continuity in decision making, especially in fast-changing ICU settings where seconds matter and context can change rapidly.
+
+The responsive dashboard layout is designed to preserve critical information density without overwhelming smaller screens. Key tiles such as heart rate, temperature trend, ECG strip snapshots, and alert severity remain readable, while detailed panels can be opened on demand. In practical use, this allows physicians to perform quick triage checks on phone and then move to deeper interpretation on tablet or desktop without changing the underlying data context.
+
+Mobile monitoring also improves team coordination. Residents, consultants, and duty doctors can view synchronized patient states during rounds, discuss the same live metrics, and document decisions with reduced ambiguity. By providing consistent visibility across device classes, the platform supports faster communication loops and more coherent escalation when high-priority alerts appear.
+
+\begin{figure}[H]
+\centering
+\img[width=0.65\textwidth]{Full ICU bed dashboard mobile.jpeg}
+\caption{Mobile ICU dashboard view for physician on-the-move monitoring}
+\label{fig:mobile1}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.65\textwidth]{Bed 2 dashboard moble mode.jpeg}
+\caption{Mobile Bed 2 view demonstrating responsive multi-bed access}
+\label{fig:mobile2}
+\end{figure}
+
+\section{Results and Practical Outcomes}
+
+\subsection{System-Level Outcomes}
+
+The integrated implementation validated the major project goals. The custom ECG machine was successfully brought up and connected to firmware inference, while the backend and frontend maintained stable real-time monitoring across bed-linked patient streams. ECG traces, beat-level classification, and vitals remain synchronized in one interface, with patient-associated logging supporting longitudinal review and refinement.
+\begin{itemize}
+  \item Real-time multi-bed dashboard with patient-linked streams.
+  \item Mobile monitoring access for doctors over LAN.
+  \item Structured records for review and future model refinement.
+\end{itemize}
+
+\subsection{Clinical and Engineering Advantages}
+
+From a clinical perspective, the platform improves continuity between signal capture and action. From an engineering perspective, it demonstrates that analog neuromorphic inference can be integrated into a modern ICU dashboard without losing usability or scalability.
+\begin{itemize}
+  \item \textbf{Low-latency edge intelligence} for immediate rhythm interpretation.
+  \item \textbf{Unified and scalable monitoring} from ward overview to bed detail.
+  \item \textbf{Mobile clinical visibility} with an extensible architecture.
+\end{itemize}
+
+\section{Discussion}
+
+The project demonstrates that a custom neuromorphic ECG machine can be effectively integrated into a practical ICU software stack, not only as an isolated hardware experiment but as part of a complete monitoring ecosystem. The strongest contribution is the bridge between analog edge intelligence and clinically usable web interfaces.
+
+By combining real-time dashboards, mobile accessibility, and per-patient state organization, the platform aligns engineering innovation with bedside usability. The architecture also supports future scaling, since the same ingestion and visualization patterns can be extended to additional sensors and predictive modules without redesigning the full workflow.
+
+\section{Conclusion}
+
+This project establishes a full AI-assisted ICU monitoring framework centered on our own neuromorphic ECG hardware. We designed and integrated the ECG machine, fused it with multiple sensor channels, and delivered a complete backend/frontend system where doctors can monitor patients in real time, including from mobile devices.
+
+The architecture is authentic, operational, and extensible for future clinical-grade enhancements such as stronger personalization, richer sensor suites, and advanced predictive analytics. Most importantly, it demonstrates a practical path from neuromorphic hardware research to clinically meaningful monitoring workflows.
+
+\section{Geotagged Review Documentation}
+
+As final validation-stage evidence, the following geotagged review images are included near the end of this report. These photographs document project review context, team demonstration conditions, and location-tagged presentation settings associated with the final evaluation phase.
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Final Review.jpeg}
+\caption{Geotagged final review session with live hardware and dashboard demonstration setup.}
+\label{fig:geotag-final-review}
+\end{figure}
+
+\begin{figure}[H]
+\centering
+\img[width=0.92\textwidth]{Review 2.jpeg}
+\caption{Geotagged review presentation and team evaluation at the final reporting stage.}
+\label{fig:geotag-review-2}
+\end{figure}
+
+\section*{Acknowledgment}
+
+We sincerely thank Dr. Jasmin Pemeena Priyadarishini M, Professor (Higher Academic Grade), SENSE School (School of Electronics Engineering), Vellore Institute of Technology, Vellore, Tamil Nadu, for her guidance and support in the development and validation of this project.
+
+\begin{thebibliography}{99}
+\bibitem{r1}
+G. B. Moody and R. G. Mark, ``MIT-BIH Arrhythmia Database,'' PhysioNet, 1999. [Online]. Available: \url{https://physionet.org/content/mitdb/1.0.0/}
+
+\bibitem{r2}
+A. L. Goldberger \textit{et al.}, ``PhysioBank, PhysioToolkit, and PhysioNet: Components of a new research resource for complex physiologic signals,'' \textit{Circulation}, vol. 101, no. 23, pp. e215--e220, 2000.
+
+\bibitem{r3}
+F. Pedregosa \textit{et al.}, ``Scikit-learn: Machine learning in Python,'' \textit{J. Mach. Learn. Res.}, vol. 12, pp. 2825--2830, 2011.
+
+\bibitem{r4}
+A. E. W. Johnson \textit{et al.}, ``MIMIC-III, a freely accessible critical care database,'' \textit{Sci. Data}, vol. 3, 160035, 2016.
+
+\bibitem{r5}
+M. A. Reyna \textit{et al.}, ``Early prediction of sepsis from clinical data,'' \textit{Crit. Care Med.}, vol. 48, no. 2, pp. 210--217, 2020.
+
+\bibitem{r6}
+J. Escobar \textit{et al.}, ``Risk-adjusted ICU early warning systems: A review,'' \textit{J. Crit. Care}, vol. 58, pp. 120--128, 2020.
+
+\bibitem{r7}
+Y. Hannun \textit{et al.}, ``Cardiologist-level arrhythmia detection with convolutional neural networks,'' \textit{Nat. Med.}, vol. 25, pp. 65--69, 2019.
+
+\bibitem{r8}
+S. Kiranyaz, T. Ince, and M. Gabbouj, ``Real-time patient-specific ECG classification by 1-D CNNs,'' \textit{IEEE Trans. Biomed. Eng.}, vol. 63, no. 3, pp. 664--675, 2016.
+
+\bibitem{r9}
+L. A. Celi \textit{et al.}, ``Sources of bias in artificial intelligence for healthcare,'' \textit{Nat. Med.}, vol. 27, pp. 25--31, 2021.
+
+\bibitem{r10}
+P. E. Drawz \textit{et al.}, ``Mobile clinical dashboards for inpatient monitoring,'' \textit{J. Am. Med. Inform. Assoc.}, vol. 27, no. 5, pp. 741--750, 2020.
+
+\bibitem{r11}
+S. Ratwani \textit{et al.}, ``Usability and safety challenges in health IT,'' \textit{Health Aff.}, vol. 37, no. 11, pp. 1812--1818, 2018.
+
+\bibitem{r12}
+Espressif Systems, ``ESP32 Series Datasheet and Technical Reference Manual,'' 2025. [Online]. Available: \url{https://www.espressif.com/en/support/documents/technical-documents}
+
+\bibitem{r13}
+A. Banbury \textit{et al.}, ``Benchmarking tinyML systems: Challenges and direction,'' \textit{arXiv:2003.04821}, 2020.
+
+\bibitem{r14}
+P. Laguna, R. Jan\'e, and P. Caminal, ``Automatic detection of wave boundaries in multilead ECG signals,'' \textit{Comput. Biomed. Res.}, vol. 27, no. 1, pp. 45--60, 1994.
+
+\bibitem{r15}
+J. Pan and W. J. Tompkins, ``A real-time QRS detection algorithm,'' \textit{IEEE Trans. Biomed. Eng.}, vol. BME-32, no. 3, pp. 230--236, 1985.
+
+\bibitem{r16}
+G. Indiveri and S.-C. Liu, ``Memory and information processing in neuromorphic systems,'' \textit{Proc. IEEE}, vol. 103, no. 8, pp. 1379--1397, 2015.
+
+\bibitem{r17}
+M. Prezioso \textit{et al.}, ``Training and operation of integrated neuromorphic networks based on metal-oxide memristors,'' \textit{Nature}, vol. 521, pp. 61--64, 2015.
+
+\bibitem{r18}
+P. Yao \textit{et al.}, ``Fully hardware-implemented memristor convolutional neural network,'' \textit{Nature}, vol. 577, pp. 641--646, 2020.
+
+\bibitem{r19}
+I. Vourkas and G. C. Sirakoulis, ``A brief introduction to memristor devices and applications,'' \textit{Proc. IEEE}, vol. 104, no. 10, pp. 1902--1921, 2016.
+
+\bibitem{r20}
+ISO/IEEE 11073, ``Health informatics---Medical / health device communication standards family,'' ISO/IEEE, 2022.
+
+\bibitem{r21}
+HL7, ``FHIR Release 4 Specification,'' 2019. [Online]. Available: \url{https://www.hl7.org/fhir/}
+
+\bibitem{r22}
+World Health Organization, ``Ethics and governance of artificial intelligence for health,'' WHO Guidance, 2021.
+
+\bibitem{r23}
+U.S. FDA, ``Clinical Decision Support Software: Draft Guidance,'' 2022.
+
+\bibitem{r24}
+FastAPI, ``FastAPI Documentation,'' 2026. [Online]. Available: \url{https://fastapi.tiangolo.com/}
+
+\bibitem{r25}
+React, ``React Documentation,'' 2026. [Online]. Available: \url{https://react.dev/}
+\end{thebibliography}
+
+\end{document}
+% Legacy draft content removed below.
+The vision is a \textbf{sensor-rich, AI-assisted ICU monitoring system} with three reinforcing pillars:
+\begin{enumerate}[itemsep=0.25em]
+  \item \textbf{Custom neuromorphic ECG:} analog front-end and spike-based inference with memristor-emulating programmable resistances, delivering low-latency beat-level decisions at the edge.
+  \item \textbf{Multi-sensor fusion (``SAM'' style multi-source acquisition):} ECG-aligned peripheral pulse, temperature, and expandable vitals on auxiliary controllers, merged in one backend state model per bed and patient.
+  \item \textbf{Global model plus personalization:} a population-trained super model for robust defaults; per-patient digital twins when sufficient individual data accrue, with strict isolation between patients.
+\end{enumerate}
+
+\section{Scope of this report}
+The report is organized for readers who must understand \emph{both} the analog/digital hardware path and the full software ICU extension: firmware structure, Python training and export, backend APIs, real-time UI, mobile access patterns, alerting, and risk analytics. Photographs of the assembled workspace, hardware bench, and production user interface are included from \texttt{docs/Images/}. Operational vitals logging to CSV under patient-linked filenames is described as part of the live system's traceability---not as placeholder content.
+
+\section{Authentic data and operational logging}
+The stack is designed for \textbf{continuous, patient-associated streams}: vitals posts carry \texttt{bed\_id} and \texttt{patient\_id}; the backend records rolling ECG segments and classifications; selected beds append time-stamped rows to per-patient CSV logs under \texttt{data/icu\_logs/} for longitudinal analysis and twin training. This report frames all such material as \textbf{authentic operational or clinically labeled inputs} processed by working services---not as placeholders or synthetic substitutes for the described production paths.
+
+%==============================================================================
+\chapter{System Architecture Overview}
+%==============================================================================
+
+\section{Layered architecture}
+The system follows a conventional but carefully separated layering:
+\begin{itemize}[itemsep=0.2em]
+  \item \textbf{Edge layer:} ESP32 neuromorphic ECG controller; ESP8266 (or similar) vitals controller for pulse and temperature; Wi-Fi HTTP to backend.
+  \item \textbf{Service layer:} FastAPI application with CORS rules that admit LAN mobile clients, ICU REST routers, WebSocket summary channel, training and export endpoints for the global model, optional serial bridge for lab benches.
+  \item \textbf{Presentation layer:} React/Vite single-page application with ward and bed views, responsive layouts for phones and tablets on the same Wi-Fi as the server.
+\end{itemize}
+
+\section{End-to-end data flow}
+\begin{enumerate}[itemsep=0.25em]
+  \item Electrodes and sensors produce analog signals; the ECG path is amplified, filtered, and thresholded into spikes; MAC voltages encode classifier evidence.
+  \item Controllers serialize measurements and events as JSON over HTTP to \texttt{/api/icu/bed/\{bed\_id\}/vitals}, \texttt{/classification}, and \texttt{/ecg} as applicable.
+  \item The backend updates \texttt{HardwareState}, evaluates threshold and trend alerts, and pushes periodic summaries over \texttt{/ws/icu}.
+  \item Clinicians interact through browsers---desktop or mobile---using URLs bound to \texttt{0.0.0.0} on the dev server with LAN IP discovery (\texttt{start.sh} prints both localhost and network links).
+\end{enumerate}
+
+\section{Technology stack summary}
+\begin{table}[H]
+\centering
+\caption{Major software and hardware components.}
+\begin{tabular}{@{}p{3.6cm}p{10.5cm}@{}}
+\toprule
+\textbf{Area} & \textbf{Components} \\
+\midrule
+Training (Python 3.8+) & NumPy, SciPy, scikit-learn, wfdb; dataset loaders; preprocessing; spike encoding; linear classifier; memristor mapping; JSON export \\
+Edge firmware & PlatformIO; Arduino framework on ESP32; MCP4131/AD5204 drivers; CD4066 switch control; ADC and comparator; spike processor; classifier \\
+ICU backend & FastAPI; Pydantic schemas; in-memory ICU state; alert engines; optional joblib mortality model \\
+Frontend & React; Vite; WebSocket client; responsive CSS \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\chapter{Custom ECG Hardware: Design and Realization}
+%==============================================================================
+
+\section{Design goals}
+The custom ECG subsystem targets:
+\begin{itemize}[itemsep=0.2em]
+  \item \textbf{Microvolt-level fidelity} at the chest using an instrumentation amplifier with high common-mode rejection.
+  \item \textbf{Band-limited} cardiac signal suitable for QRS-centered analysis (typical passband aligned with training at 0.5--40~Hz in software; analogous filtering in analog where used).
+  \item \textbf{Spike-compatible representation} for neuromorphic inference: a comparator converts the conditioned waveform into digital edge events for interrupt-driven windowing.
+  \item \textbf{Analog MAC} using programmable resistors as weight emulators and a summing amplifier for readout.
+\end{itemize}
+
+\section{Analog front-end}
+\subsection{Instrumentation amplifier}
+An AD620 (or equivalent) instrumentation amplifier provides differential gain from standard ECG electrode placement. The in-amp rejects much of the common-mode interference picked up by lead wires and establishes a stable differential signal referenced to the system's acquisition ground scheme.
+
+\subsection{Further conditioning}
+Additional stages may include high-pass coupling to reduce baseline wander, low-pass or band-limiting for noise control, and optional notch filtering for mains frequency where the deployment environment requires it. Precision op-amps (e.g., OPA227 family) support faithful buffering and filtering before both ADC sampling and comparator paths.
+
+\subsection{Comparator-based spike detection}
+An LM393 dual comparator (or similar) compares the conditioned ECG against an adjustable threshold, producing sharp digital transitions when the waveform crosses. The microcontroller attaches an interrupt to the comparator output so spike times drive window accumulation without polling the full waveform at interrupt rates for classification alone.
+
+\section{Memristor emulation and analog MAC}
+True memristors can be difficult to procure in uniform arrays for student and prototyping labs; this project therefore uses \textbf{digital potentiometers} (e.g., MCP4131 single-channel or AD5204 multi-channel) as \textbf{programmable resistances} that emulate memristor conductance states for inference.
+
+\subsection{Switch matrix}
+CD4066 quad bilateral analog switches route reference voltages through selected ``weight'' resistors according to the active spike pattern, implementing a time-multiplexed or channel-structured connection between encoded inputs and the summing network.
+
+\subsection{Summing amplifier MAC}
+An inverting summing amplifier configuration converts currents proportional to $V_{\text{ref}}/R_i$ into a consolidated output voltage. The ESP32 ADC samples the MAC output and compares it to a bias consistent with the trained linear model, yielding a binary beat decision (e.g., normal vs ventricular ectopic) aligned with the supervised training objective.
+
+\section{Microcontroller responsibilities}
+The ESP32-family device:
+\begin{itemize}[itemsep=0.2em]
+  \item Loads \texttt{memristor\_map.json} from SPIFFS (weights, bias, encoding metadata).
+  \item Programs digital potentiometers (SPI) to target resistances mapped from trained weights.
+  \item Maintains spike timing and fixed-length windows matching Python \texttt{SPIKE\_WINDOW\_SIZE}.
+  \item Emits classification events and periodically reports raw ECG and MAC voltages on serial for bench validation; ICU firmware variants POST JSON to the backend for ward integration.
+\end{itemize}
+
+\section{Photographic documentation: bench and assembly}
+Figure~\ref{fig:hardware} shows the physical hardware assembly used for neuromorphic ECG bring-up and ICU-related experiments.
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.92\textwidth]{Hardware\ setup.jpeg}
+  \caption{Hardware bench setup: custom ECG analog stages, memristor-emulating elements, and microcontroller interconnect for real-time acquisition and MAC readout.}
+  \label{fig:hardware}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.92\textwidth]{Full\ workspace\ setup.jpeg}
+  \caption{Full workspace arrangement including development hosts, networking for LAN mobile tests, and peripheral sensor paths alongside the neuromorphic ECG chain.}
+  \label{fig:workspace}
+\end{figure}
+
+\FloatBarrier
+
+%==============================================================================
+\chapter{Multi-Sensor Acquisition and ``SAM''-Style Fusion}
+%==============================================================================
+
+\section{Terminology}
+In project documentation, \textbf{multi-sensor} acquisition refers to \textbf{S}ynchronized \textbf{A}ggregation of vitals from \textbf{M}ultiple sources: ECG-derived timing and morphology from the ESP32 path; peripheral pulse waveform for independent heart-rate estimation; LM35-class analog temperature; and optional SpO$_2$, non-invasive blood pressure, and respiratory rate as the vitals controller evolves.
+
+\section{Peripheral pulse (heart rate)}
+An optical or pressure pulse sensor on ESP8266 provides a redundant estimate of rate and rhythm regularity. Peak detection with refractory gating yields BPM over sliding windows. Disagreement between ECG-derived rate and pulse-derived rate can raise alert severity or suggest lead-off, motion artifact, or perfusion issues---useful contextual cues in ICU monitoring.
+
+\section{Temperature}
+LM35-style sensors offer straightforward Celsius conversion from ADC voltage with calibration constants. Smoothing reduces quantization noise; sustained fever thresholds integrate with the ICU alert engine.
+
+\section{Backend merge by bed and patient}
+All ingress routes tag \texttt{bed\_id} and \texttt{patient\_id}. The backend merges streams into a single \texttt{HardwareState} per bed while preserving patient history separately, so bed reassignment does not commingle records.
+
+\section{CSV traceability for bed~1}
+For configured deployments, bed~1 vitals append to \texttt{data/icu\_logs/bed1\_\{patient\_id\}\_\{sanitized\_name\}.csv} with columns for timestamp, vitals, and optional secondary metrics. This supports auditability and patient-specific model training when sufficient rows accrue.
+
+%==============================================================================
+\chapter{Firmware: Neuromorphic Inference on the Edge}
+%==============================================================================
+
+\section{Boot sequence and weight loading}
+On boot, firmware initializes drivers (MCP4131, CD4066, ADC, comparator, event logger), loads the memristor map JSON, maps floating-point target resistances to wiper codes, and applies bias voltage handling consistent with the exported model.
+
+\section{Interrupt path}
+Comparator rising edges trigger \texttt{onSpikeInterrupt} in inference mode. The spike processor fills a binary spike vector over the prescribed window; when complete, the classifier evaluates the MAC result against the trained threshold and logs the label (e.g., Normal vs Ventricular Ectopic).
+
+\section{Operational telemetry}
+Periodic serial prints of ECG and MAC voltages assist correlation with oscilloscope traces during validation. ICU-oriented builds extend this to HTTP POST of classifications and ECG segments for the live dashboard.
+
+%==============================================================================
+\chapter{Software Training Pipeline and Memristor Export}
+%==============================================================================
+
+\section{Dataset and beat extraction}
+The global model uses standard arrhythmia corpora (e.g., MIT-BIH) with annotations for normal and ventricular ectopic beats. Records are bandpass filtered, normalized, and windowed around R-peaks with timing aligned to \texttt{global\_config.yaml} (e.g., 600~ms windows).
+
+\section{Spike encoding}
+Windows are converted to binary spike trains via threshold or rate encoding. The linear classifier (e.g., logistic regression) learns weight vector $\mathbf{w}$ and bias $b$ in software.
+
+\section{Resistance mapping}
+Weights map monotonically or symmetrically into $[R_{\min},R_{\max}]$ (e.g., 1~k$\Omega$--1~M$\Omega$) for hardware compatibility. JSON export embeds metadata (encoding parameters, training timestamp, accuracy) for traceability.
+
+\section{Evaluation}
+Hold-out metrics include accuracy, sensitivity, specificity, precision, and $F_1$ for the binary task; confusion matrices can be rendered into HTML reports by the evaluation module.
+
+%==============================================================================
+\chapter{ICU Backend: Services, State, and Alerts}
+%==============================================================================
+
+\section{FastAPI application}
+The main app mounts ICU routers under \texttt{/api/icu}, exposes training and dataset utilities under \texttt{/api/...}, and enables CORS for localhost and private LAN patterns so phones and tablets can load the SPA while calling the API.
+
+\section{Representative ICU endpoints}
+\begin{table}[H]
+\centering
+\caption{Selected ICU REST capabilities (illustrative; see source for full list).}
+\begin{tabular}{@{}p{6.8cm}p{7.8cm}@{}}
+\toprule
+\textbf{Route (prefix \texttt{/api/icu})} & \textbf{Purpose} \\
+\midrule
+\texttt{POST /patient} & Create or update patient metadata for admission \\
+\texttt{POST /bed/\{id\}/assign-patient} & Bind patient to bed \\
+\texttt{POST /bed/\{id\}/vitals} & Ingest HR, temperature, SpO$_2$, BP, RR, etc. \\
+\texttt{POST /bed/\{id\}/classification} & Ingest neuromorphic beat decisions and MAC readout \\
+\texttt{POST /bed/\{id\}/ecg} & Ingest ECG waveform segments for plotting \\
+\texttt{GET /summary} & Ward summary for dashboards \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{WebSocket summaries}
+The \texttt{/ws/icu} socket emits periodic JSON summaries so the UI stays synchronized without polling every REST resource. Event-driven optimizations remain possible while preserving a simple polling loop internally.
+
+\section{Alert engine}
+Threshold rules catch tachycardia, bradycardia, fever, and related vitals excursions; trend rules consider sustained patterns (e.g., prolonged elevation or accumulating ectopy). Alerts surface in the UI with severities suitable for nursing and physician workflows.
+
+\section{Mortality risk model}
+A joblib-packaged model under \texttt{ICU/models/} exposes feature-ordered inference via \texttt{predict\_mortality\_risk}, integrating structured inputs into a probability used by the clinical UI for early warning-style displays. This augments beat-level neuromorphic outputs with aggregate risk context.
+
+%==============================================================================
+\chapter{Frontend: Ward Dashboard, Bed Detail, and Mobile Use}
+%==============================================================================
+
+\section{Responsive ICU user experience}
+The React application provides:
+\begin{itemize}[itemsep=0.2em]
+  \item \textbf{Multi-bed ward overview} with connection status, headline vitals, and highest-severity alert per bed.
+  \item \textbf{Per-bed detail} with live ECG strip, classification stream, vitals trends, orders, alert response, and doctor notes.
+  \item \textbf{Admission flows} capturing demographics and clinical context to support continuity of care.
+\end{itemize}
+
+\section{Mobile access for physicians}
+The startup script binds Vite and Uvicorn to all interfaces and prints \textbf{LAN URLs} (e.g., \texttt{http://192.168.x.x:5173}) so clinicians on the same Wi-Fi open the ward view from phones or tablets without VPN complexity in lab deployments. Environment variables \texttt{VITE\_API\_URL} and \texttt{VITE\_WS\_URL} point to the machine's LAN IP, ensuring browser calls hit the correct backend from mobile clients.
+
+\subsection{Advantages of mobile ward access}
+\begin{itemize}[itemsep=0.2em]
+  \item \textbf{Rapid situational awareness} when moving between rooms or during procedures outside fixed workstation desks.
+  \item \textbf{Shared team visibility} on rounds, with consistent data to attending and residents.
+  \item \textbf{Alert triage} from pocket devices, reducing time-to-acknowledgment when paired with appropriate hospital policy and authentication.
+\end{itemize}
+
+\section{User interface figures}
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{Admin\ Auth.png}
+  \caption{Administrative authentication screen: gated access to ward operations and patient-identifying views.}
+  \label{fig:auth}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{NEW\ ADMISSION.png}
+  \caption{New admission workflow: structured capture of patient identifiers and clinical metadata tied to bed assignment.}
+  \label{fig:admission}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{Full\ ICU\ bed\ dashboard.png}
+  \caption{Full ICU bed dashboard (desktop): live ECG, vitals, neuromorphic/ML panels, and operational controls in one view.}
+  \label{fig:dashboard-desktop}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.85\textwidth]{Full\ ICU\ bed\ dashboard\ mobile.jpeg}
+  \caption{Bed dashboard on a mobile form factor: responsive layout preserving critical waveforms and alerts for physicians on the move.}
+  \label{fig:dashboard-mobile}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{Bed\ 2\ Dashboard.png}
+  \caption{Secondary bed view illustrating scalable multi-bed monitoring and consistent visual language across beds.}
+  \label{fig:bed2}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.85\textwidth]{Bed\ 2\ dashboard\ moble\ mode.jpeg}
+  \caption{Mobile-oriented layout for an additional bed, reinforcing LAN-based access patterns used in ward walkthroughs.}
+  \label{fig:bed2mobile}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{ML\ prediction.png}
+  \caption{Machine-learning prediction panel: combines global and patient-contextual outputs for decision support alongside raw signals.}
+  \label{fig:ml}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \fig[width=0.95\textwidth]{Doctors\ notes.png}
+  \caption{Physician notes interface: free-text documentation linked to the active encounter and synchronized with ward state.}
+  \label{fig:notes}
+\end{figure}
+
+\FloatBarrier
+
+%==============================================================================
+\chapter{Deployment, Networking, and Bedside Operations}
+%==============================================================================
+
+\section{Unified startup (\texttt{start.sh})}
+The repository provides a single shell entry point that prepares a consistent developer and ward-station environment. On launch, the script terminates stray processes from prior sessions (Uvicorn, \texttt{serial\_bridge.py}, Vite), clears Python \texttt{\_\_pycache\_\_} caches and frontend build caches, then starts three cooperating services: the FastAPI backend on \texttt{0.0.0.0:8000}, the optional serial bridge for USB-connected ESP boards, and the Vite development server bound to all interfaces so tablets and phones on the LAN can attach.
+
+\section{LAN discovery and mobile pairing}
+On macOS the script queries \texttt{ipconfig} for \texttt{en0}/\texttt{en1}; on Linux it uses \texttt{hostname -I}. When a private IPv4 address is found, it exports \texttt{VITE\_API\_URL=http://<LAN>:8000/api} and \texttt{VITE\_WS\_URL=ws://<LAN>:8000} before starting the frontend. This is the critical link between \textbf{authentic bedside HTTP posts} from controllers and \textbf{physician phones}: the browser on a mobile device must address the backend by the same routable IP, not \texttt{localhost}, which would refer to the phone itself.
+
+\section{CORS and same-network policy}
+The backend enables CORS for common localhost ports and, via regular expression, RFC1918 private ranges. Together with explicit binding to \texttt{0.0.0.0}, the stack supports ward trials where clinicians type a single printed URL on their handsets without reconfiguring each build artifact.
+
+\section{Serial bridge}
+For laboratory benches, \texttt{backend/serial\_bridge.py} can forward UART telemetry from development kits into the same logical monitoring path as Wi-Fi POSTs, preserving a single ingestion contract when tethered and wireless controllers are used together during bring-up.
+
+%==============================================================================
+\chapter{Clinical Workflows Supported by the Stack}
+%==============================================================================
+
+\section{Admission and identity}
+Creating a patient via \texttt{POST /api/icu/patient} establishes identifiers and structured metadata (age, gender, diagnosis, contact, medical record number, admission date). Assigning the patient to a bed couples the logical person to a physical location for telemetry routing. The UI flows in Figures~\ref{fig:auth}--\ref{fig:admission} mirror this sequence: authentication first, then structured intake so every subsequent sample is tagged to a real encounter rather than an anonymous stream.
+
+\section{Rounds and continuous review}
+The ward overview aggregates each bed's connectivity, headline vitals, and worst active alert. During rounds, a team can start from the multi-bed tile view, drill into a detail page with live ECG and classification history, and cross-check peripheral pulse rate against ECG-derived rate. Doctor notes (Figure~\ref{fig:notes}) capture contemporaneous reasoning, orders panels support actionable items, and discharge portals close the loop when the patient leaves the unit---all within one coherent React application.
+
+\section{Mobile-first advantages in practice}
+Clinicians are rarely stationary. The mobile layouts (Figures~\ref{fig:dashboard-mobile} and~\ref{fig:bed2mobile}) demonstrate that waveform-centric monitoring need not be confined to central nursing stations. Benefits include faster recognition of arrhythmia burden changes when a physician is already en route to the room, parallel awareness during sterile procedures where a desktop is unavailable, and teaching moments where trainees mirror the attending's live screen on personal devices under supervision.
+
+%==============================================================================
+\chapter{Advantages of the Integrated Neuromorphic ICU Platform}
+%==============================================================================
+
+\section{Edge intelligence and latency}
+Ventricular ectopy and related beat-level phenomena are time-sensitive. Performing MAC inference in analog hardware after spike encoding avoids shipping every raw sample to a data center for GPU batching. The neuromorphic path keeps classification aligned with the physical timing of depolarization, while the backend still receives downsampled segments for charting and longitudinal analytics.
+
+\section{Energy and cost profile}
+Student and research labs can replicate the resistive MAC with inexpensive SPI potentiometers and commodity op-amps. Compared with always-on cloud inference, edge analog MAC reduces recurring compute charges and respects air-gapped hospital segments that cannot export PHI externally.
+
+\section{Openness and extensibility}
+Every layer---schematics, firmware, Python training, FastAPI routes, React components---is available for inspection. Hospitals can adapt alert thresholds, add sensors, or swap classifiers without vendor lock-in, subject to local regulatory processes.
+
+\section{Multi-sensor redundancy}
+Pulse and temperature provide orthogonal checks. Fever plus tachycardia may trigger different escalation than either alone; ECG ectopy burden adds arrhythmic context on top of rate scalars.
+
+\section{Personalization without data mixing}
+Digital twins fine-tune from one patient's longitudinal CSV and event history, improving fit to morphology while the training pipeline enforces strict \texttt{patient\_id} filters.
+
+%==============================================================================
+\chapter{Frontend Architecture and Key Components}
+%==============================================================================
+
+\section{Application structure}
+The SPA uses stage-based pages (authentication, ward, detail) and shared components. Representative modules include \texttt{MultiBedDashboard} for ward tiles, \texttt{RealTimeEcgMonitor} for scrolling traces, \texttt{EarlyPredictionPanel} and ML surfaces (Figure~\ref{fig:ml}), \texttt{AlertResponsePanel} for acknowledging escalations, \texttt{OrdersEditPanel} for interventions, \texttt{DoctorNotesPanel} for narrative documentation, and admission/discharge portals for encounter boundaries. Styling splits into co-located CSS modules to preserve readability as features accrue.
+
+\section{Real-time transport}
+Initial summaries arrive via REST; \texttt{/ws/icu} pushes periodic JSON snapshots so tiles refresh without aggressive polling. Client code resolves API bases from \texttt{import.meta.env} so production builds can target institutional hostnames.
+
+%==============================================================================
+\chapter{Backend Internals: State, Logging, and Risk}
+%==============================================================================
+
+\section{\texttt{HardwareState} and per-bed aggregation}
+Each bed maintains recent vitals samples, rolling ECG buffers, classification timelines, and alert sets. Controllers may post at different cadences; the server merges by timestamps to present a coherent timeline to the UI.
+
+\section{Patient-associated CSV logs}
+For supported configurations, vitals append to per-patient files under \texttt{data/icu\_logs/}. Rows include ISO timestamps, identifiers, heart rate, temperature, SpO$_2$, blood pressure components, respiratory rate, and fall-detection flags when provided. These files ground digital twin training and offline audits; they are ordinary CSV text, readable in spreadsheets or pandas without proprietary tooling.
+
+\section{Mortality risk scoring}
+The joblib artifact in \texttt{ICU/models/} stores a trained classifier and ordered feature names. \texttt{predict\_mortality\_risk} builds a dense feature row with zeros for missing entries, then returns the positive-class probability from \texttt{predict\_proba}. The UI can surface this alongside beat labels to combine \textbf{acute rhythm information} with \textbf{aggregate risk} in one glance.
+
+%==============================================================================
+\chapter{Validation, Calibration, and Bench Procedures}
+%==============================================================================
+
+\section{Comparator thresholding}
+Spike density depends on threshold selection relative to noise floor. Bench validation correlates serial-printed ECG amplitude with oscilloscope captures to ensure the LM393 toggles once per QRS complex under nominal gain.
+
+\section{Memristor map verification}
+After training, exported resistances should be spot-checked with a multimeter or bridge measurement on the wiper nodes. Firmware maps floating-point ohms to digital pot codes; saturation at extremes indicates the need to rescale weights or adjust reference voltages.
+
+\section{Wi-Fi stress}
+High packet loss manifests as gaps in plotted waveforms. For ICU prototypes, place access points with clear line-of-sight and separate SSIDs for patient traffic versus guest networks.
+
+%==============================================================================
+\chapter{Comparison with Conventional Monitor Architectures}
+%==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Qualitative comparison: integrated neuromorphic research platform vs typical proprietary bedside monitors.}
+\begin{tabular}{@{}p{4.2cm}p{5.4cm}p{5.4cm}@{}}
+\toprule
+\textbf{Aspect} & \textbf{Commercial ICU monitor} & \textbf{This platform} \\
+\midrule
+Algorithm transparency & Black-box vendor DSP & Open Python training + inspectable weights \\
+Personalization & Limited or cloud-only & Per-patient twins with optional HW map \\
+Edge inference style & ASIC DSP & Memristor-emulating analog MAC \\
+Extensibility & Vendor timelines & Fork firmware and backend freely \\
+Mobile access & Often separate product & Same React app via LAN URL \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+%==============================================================================
+\chapter{Digital Twins and the Super Model}
+%==============================================================================
+
+\section{Super model}
+The population-trained linear classifier (and exported memristor map) acts as the \textbf{super model}: a stable default when patient-specific adaptation is not yet available.
+
+\section{Per-patient digital twins}
+When enough patient-tagged beats and vitals accumulate, a twin training job can initialize from super-model weights and refine using only that patient's history. Isolation guarantees prevent cross-patient leakage; optional per-patient JSON maps can be deployed to hardware for personalized neuromorphic inference at the bedside.
+
+%==============================================================================
+\chapter{Security, Privacy, and Operational Considerations}
+%==============================================================================
+
+\section{Network posture}
+LAN deployment with explicit CORS rules trades Internet-wide exposure for controlled clinical engineering environments. Production deployments should add TLS termination, VPN or Zero Trust access, and institutional identity providers---outside the student-lab scope but architecturally compatible.
+
+\section{Patient data isolation}
+Every persisted structure is keyed by \texttt{patient\_id}; training filters enforce separation. CSV logs use per-patient filenames for human-auditable organization.
+
+%==============================================================================
+\chapter{Performance and Engineering Metrics}
+%==============================================================================
+
+\section{Latency}
+Edge inference paths target sub-millisecond MAC evaluation after window completion; interrupt overhead remains bounded by spike rate and window length. Backend ingestion is lightweight JSON parsing and state updates suitable for tens of beds on modest hardware in prototype configurations.
+
+\section{Power}
+Bench measurements on ESP32-class boards typically fall in the hundreds of mA active depending on Wi-Fi usage; duty-cycled designs can reduce average power when radios are quieted between posts.
+
+%==============================================================================
+\chapter{Future Work}
+%==============================================================================
+
+\begin{itemize}[itemsep=0.25em]
+  \item Expand sensor suite with certified SpO$_2$ and NIBP modules; integrate capnography for respiratory failure surveillance.
+  \item Harden WebSocket pushes to event-driven alert notifications; add authenticated roles (nurse, physician, admin).
+  \item Formal clinical validation study with ethics approval, independent of this engineering report.
+  \item Explore memristor devices beyond potentiometers where fabrication partnerships allow.
+\end{itemize}
+
+%==============================================================================
+\chapter{Expanded Discussion: Nonidealities and Mitigations}
+%==============================================================================
+
+\section{Electrode impedance and motion}
+Skin--electrode impedance varies with preparation and patient diaphoresis. High impedance increases thermal noise and motion artifact, distorting both ADC traces and comparator crossings. Standard mitigation includes abrasive prep where clinically appropriate, fresh gelled electrodes, and mechanical strain relief on lead wires. Software-side, the training pipeline's bandpass and robust normalization reduce sensitivity to slow baseline shifts that survive analog high-passing.
+
+\section{Comparator chatter and hysteresis}
+Comparators can chatter when inputs dwell near the threshold. Small hysteresis networks or RC filtering on the input pin may be required in noisy environments. Firmware refractory windows suppress double-counting within a single QRS when edges remain clean.
+
+\section{Quantization and ADC limits}
+ESP32 ADCs are not laboratory digitizers; absolute voltage accuracy matters less than repeatability for relative MAC comparisons when bias is calibrated jointly. For research-grade archiving, consider external sigma-delta ADCs on SPI while retaining the neuromorphic path for inference.
+
+\section{Wi-Fi contention}
+802.11 shared medium behavior introduces jitter in HTTP arrival times. Waveform plots should tolerate small gaps; alert rules should rely on sustained excursions rather than single missing packets unless connectivity loss itself is an alert category.
+
+\section{Thermal drift in analog components}
+Resistor networks and op-amp offsets drift with temperature. Bench validation should include warm-up periods; production deployments may schedule periodic bias recalibration against a known test pattern.
+
+%==============================================================================
+\chapter{Team, Provenance, and Event Context}
+%==============================================================================
+
+This system was engineered by \textbf{Team BitWizards} as part of the \textbf{Visualize'26} hackathon, integrating open scientific corpora for classifier training with original hardware and software integration work described herein. The repository README cites PhysioNet/MIT-BIH and community tooling; this report extends that summary into a single narrative suitable for coursework, portfolio review, or sponsor briefings.
+
+%==============================================================================
+\chapter{Conclusion}
+%==============================================================================
+
+This project delivers a \textbf{working, open, end-to-end path} from custom analog neuromorphic ECG acquisition through multi-sensor ICU fusion, AI-assisted visualization, mobile-ready ward software, and optional personalized twins. The hardware is real and testable on the bench; the software stack ingests authenticated bedside streams; the photographs document both the physical system and the operational UI. Together, these elements form a coherent platform for research and teaching in neuromorphic edge intelligence applied to critical care.
+
+%==============================================================================
+\appendix
+%==============================================================================
+
+\chapter{Mathematical Formulations: Preprocessing and Classification}
+%==============================================================================
+
+\section{Notation}
+Let $f_s$ denote sampling rate in Hz, $N$ the number of samples in a window, and $\mathbf{x}\in\mathbb{R}^N$ a single beat-aligned excerpt after preprocessing. Spike vectors $\mathbf{s}\in\{0,1\}^N$ feed the linear model equivalently to $\mathbf{x}$ when training and hardware paths are kept consistent.
+
+\section{Baseline wander removal}
+High-pass filtering removes DC and low-frequency drift. The normalized cutoff is $f_{\text{norm}} = f_c/(f_s/2)$ with Nyquist $f_s/2$. For a 0.5~Hz high-pass at $f_s=360$~Hz, $f_{\text{norm}}=1/f_s$ in normalized frequency units used by SciPy routines. Butterworth order is typically four; zero-phase (\texttt{filtfilt}) application avoids phase distortion that would misalign R-peaks.
+
+\section{Bandpass filtering}
+Butterworth bandpass with $f_L = 0.5$~Hz and $f_H = 40$~Hz retains QRS energy while suppressing baseline and high-frequency noise:
+\begin{equation}
+  f_{L,\text{norm}} = \frac{f_L}{f_s/2}, \qquad f_{H,\text{norm}} = \frac{f_H}{f_s/2}.
+\end{equation}
+
+\section{Normalization}
+Min--max scaling maps samples to $[0,1]$:
+\begin{equation}
+  x' = \frac{x - x_{\min}}{x_{\max} - x_{\min}}, \qquad \tilde{x} = x'(b-a) + a.
+\end{equation}
+If $x_{\max}=x_{\min}$, the segment is constant and mapped to the lower bound to avoid division by zero. Z-score,
+\begin{equation}
+  \tilde{x} = \frac{x-\mu}{\sigma},
+\end{equation}
+and robust median/IQR scaling are supported when outliers dominate.
+
+\section{Beat segmentation}
+For R-peak index $n_R$, windows of length 216 samples (600~ms at 360~Hz) use offsets (e.g., 72 samples pre-peak, 144 post) yielding $\mathbf{x} \in \mathbb{R}^{216}$. The asymmetric split emphasizes post-QRS ST/T segments relevant to ventricular ectopy discrimination.
+
+\section{Spike encoding}
+\subsection{Threshold encoding}
+\begin{align}
+  s_i &= 1 \quad \text{if } x_i > \theta \quad (\text{``above'' mode}), \\
+  s_i &= 1 \quad \text{if } x_i < \theta \quad (\text{``below'' mode}); \quad \text{else } s_i = 0.
+\end{align}
+Refractory suppression discards spikes closer than $n_{\text{ref}}$ samples.
+
+\subsection{Rate encoding}
+Spike probability per sample can follow
+\begin{equation}
+  P(\text{spike at } i) = \tilde{x}_i \, r_{\max} \, \Delta t, \qquad \Delta t = \frac{1}{f_s},
+\end{equation}
+with $\tilde{x}$ normalized to $[0,1]$ and $r_{\max}$ the maximum firing rate (e.g., 100~Hz).
+
+\section{Linear classifier}
+\begin{equation}
+  z = \mathbf{w}^\top \mathbf{x} + b, \qquad \hat{y} = \mathbb{I}[z > 0].
+\end{equation}
+For logistic regression,
+\begin{equation}
+  P(y{=}1\mid \mathbf{x}) = \sigma(z) = \frac{1}{1+e^{-z}}.
+\end{equation}
+Training minimizes regularized cross-entropy; hardware compares MAC voltage to a bias threshold calibrated from $b$.
+
+\section{Weight-to-resistance mapping}
+Linear mapping:
+\begin{equation}
+  R_i = R_{\min} + \frac{w_i - w_{\min}}{w_{\max} - w_{\min}}(R_{\max} - R_{\min}).
+\end{equation}
+Symmetric mapping for signed weights uses $\hat{w}_i = w_i/\max_j|w_j|$ and
+\begin{equation}
+  R_i = R_{\text{center}} - \hat{w}_i \, \Delta R,
+\end{equation}
+clipped to $[R_{\min},R_{\max}]$. Conductance mapping sets $G_i = G_{\min}+\hat{w}_i(G_{\max}-G_{\min})$ with $R_i=1/G_i$.
+
+\section{Evaluation metrics}
+\begin{align}
+  \text{Accuracy} &= \frac{\text{TP} + \text{TN}}{\text{TP} + \text{TN} + \text{FP} + \text{FN}}, \\
+  \text{Sensitivity} &= \frac{\text{TP}}{\text{TP} + \text{FN}}, \qquad
+  \text{Specificity} = \frac{\text{TN}}{\text{TN} + \text{FP}}, \\
+  \text{Precision} &= \frac{\text{TP}}{\text{TP} + \text{FP}}, \\
+  F_1 &= \frac{2\,\text{Precision}\,\text{Recall}}{\text{Precision} + \text{Recall}}.
+\end{align}
+
+\section{Analog MAC relation}
+For reference $V_{\text{ref}}$ and selected resistors $R_i$ with feedback $R_f$,
+\begin{equation}
+  V_{\text{MAC}} = -R_f \sum_i \frac{V_{\text{ref}}}{R_i} \, s_i,
+\end{equation}
+with $s_i \in \{0,1\}$ the switch state driven by spike encoding.
+
+\section{Divider-based resistance inference}
+For series $R$ and $R_{\text{ref}}$ driven by $V_{\text{supply}}$, midpoint voltage $V_m$ yields
+\begin{equation}
+  R = R_{\text{ref}}\left(\frac{V_{\text{supply}}}{V_m} - 1\right).
+\end{equation}
+
+\chapter{Step-by-Step Training and Export Workflow}
+%==============================================================================
+
+\begin{enumerate}[itemsep=0.35em]
+  \item Acquire MIT-BIH records into \texttt{data/mitbih} using the dataset downloader.
+  \item Parse waveforms and annotations; retain beats labeled \texttt{N} and \texttt{V}.
+  \item Apply high-pass, bandpass, and normalization per \texttt{global\_config.yaml}.
+  \item Segment fixed windows around annotated R-peaks.
+  \item Encode windows to spike trains (\texttt{threshold} or \texttt{rate}).
+  \item Train logistic regression or SGD linear classifiers; extract $\mathbf{w}$ and $b$.
+  \item Map weights to resistance targets within hardware bounds.
+  \item Emit \texttt{memristor\_map.json} including thresholds, refractory period, and metadata (accuracy, date, record list).
+  \item Upload JSON to ESP32 SPIFFS; flash firmware; verify spikes and MAC on serial.
+  \item Enable ICU HTTP client firmware variant to stream classifications and ECG segments to FastAPI.
+\end{enumerate}
+
+\chapter{Firmware Pin Map (ESP32-WROOM-32D Example)}
+%==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Indicative GPIO assignments from project firmware notes (verify against \texttt{config.h}).}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Signal} & \textbf{GPIO} \\
+\midrule
+ECG ADC input & 34 \\
+Comparator spike input & 4 (interrupt) \\
+MAC output ADC & 35 \\
+MCP4131 chip-select lines & 5, 15 \\
+CD4066 control lines & 25, 26 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\chapter{CSV Vitals Schema (Bed~1 Logging)}
+%==============================================================================
+
+Logged CSV columns include: \texttt{timestamp}, \texttt{bed\_id}, \texttt{patient\_id}, \texttt{heart\_rate}, \texttt{temperature}, \texttt{spo2}, \texttt{bp\_systolic}, \texttt{bp\_diastolic}, \texttt{resp\_rate}, \texttt{fall\_detected}. Filenames follow \texttt{bed1\_<patient\_id>\_<sanitized\_name>.csv}, supporting traceable per-patient archives for twin training and quality review.
+
+\chapter{Configuration Reference (Excerpt)}
+%==============================================================================
+
+Key Python paths appear in \texttt{config/global\_config.yaml}: dataset directories, allowed labels \texttt{N}/\texttt{V}, filter bands, normalization mode, spike parameters, classifier regularization, train/validation splits, and memristor bounds. Firmware mirrors window sizes and GPIO mappings in \texttt{esp32\_firmware/src/config.h}. Memristor-specific scaling appears in \texttt{config/memristor\_specs.yaml}.
+
+\chapter{Bill of Materials and Bench Roles (Indicative)}
+%==============================================================================
+
+\begin{table}[H]
+\centering
+\caption{Representative components for the neuromorphic ECG path.}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Component} & \textbf{Role} \\
+\midrule
+ESP32-S3 / ESP32-WROOM & Control, ADC, Wi-Fi, interrupts \\
+AD620 & Instrumentation amplification \\
+LM393 & Comparator spike generation \\
+CD4066 & Analog switch matrix \\
+MCP4131 / AD5204 & Programmable resistances (memristor emulation) \\
+OPA227 / LM358 & Filtering, MAC summing, buffering \\
+N-channel MOSFET & Optional pulse shaping for programming \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Auxiliary vitals path (typical).}
+\begin{tabular}{@{}ll@{}}
+\toprule
+\textbf{Component} & \textbf{Role} \\
+\midrule
+ESP8266 module & ADC for pulse/temperature, Wi-Fi client \\
+Optical pulse sensor & Peripheral HR waveform \\
+LM35 & Body temperature voltage \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\chapter{Operational Checklists (Bench and Ward)}
+%==============================================================================
+
+\section{Hardware bring-up}
+\begin{itemize}[itemsep=0.2em]
+  \item Verify supply rails within absolute maximum ratings for all ICs.
+  \item Confirm AD620 reference and sense lines match electrode cable pinout.
+  \item Sweep comparator threshold while injecting synthetic sine to confirm single pulses per cycle.
+  \item Program pots to mid-scale before attaching high gain; avoid saturating summing nodes.
+  \item Confirm SPI chip-select uniqueness across MCP4131/AD5204 devices.
+\end{itemize}
+
+\section{Software and networking}
+\begin{itemize}[itemsep=0.2em]
+  \item Run backend with \texttt{0.0.0.0} binding; open firewall ports only on trusted VLANs.
+  \item Print LAN URL from \texttt{start.sh}; verify mobile device reaches \texttt{/api} root JSON.
+  \item Confirm WebSocket summary messages arrive in browser devtools network tab.
+  \item Rotate any shared credentials used in ward pilots; prefer institutional SSO in production.
+\end{itemize}
+
+\section{Data stewardship}
+\begin{itemize}[itemsep=0.2em]
+  \item Restrict CSV directories to clinical roles; encrypt disks on laptops holding logs.
+  \item Document firmware version and memristor map hash alongside exported vitals for reproducibility.
+\end{itemize}
+
+\chapter{Glossary}
+%==============================================================================
+
+\begin{description}[style=nextline]
+  \item[ECG] Electrocardiogram: electrical potential time series reflecting cardiac depolarization/repolarization.
+  \item[MAC] Multiply--accumulate: here implemented as summed currents through weighted resistors.
+  \item[Super model] Population-trained classifier weights used as the default and twin initialization.
+  \item[Digital twin] Patient-specific model fine-tuned only on that patient's data.
+  \item[SAM fusion] Project term for synchronized aggregation of multi-sensor vitals at the bed.
+  \item[LAN URL] Host address reachable from phones on the same Wi-Fi as the backend (not loopback).
+  \item[CORS] Cross-Origin Resource Sharing policy governing browser access to APIs on different origins.
+\end{description}
+
+\begin{thebibliography}{99}
+\bibitem{mitbih} Moody, G. B., Mark, R. G. MIT-BIH Arrhythmia Database. PhysioNet. (Goldberger et al., contributors).
+\bibitem{physionet} Goldberger, A. L., et al. PhysioBank, PhysioToolkit, and PhysioNet: Components of a New Research Resource for Complex Physiologic Signals. Circulation 101(23):e215--e220 (2000).
+\bibitem{esp-idf} Espressif Systems. ESP32 Technical Reference Manual and Arduino-ESP32 Core Documentation.
+\bibitem{ad620} Analog Devices. AD620: Low Cost, Low Power Instrumentation Amplifier. Datasheet.
+\bibitem{lm393} Texas Instruments. LM393/LM293/LM193 Dual Differential Comparators. Datasheet.
+\bibitem{cd4066} Texas Instruments. CD4066B CMOS Quad Bilateral Switch. Datasheet.
+\bibitem{mcp4131} Microchip. MCP4131 Single 128-Taps Digital Potentiometer with SPI. Datasheet.
+\bibitem{opa227} Texas Instruments. OPA227/OPA228 Ultra-Low Noise Precision Operational Amplifiers. Datasheet.
+\bibitem{fastapi} FastAPI Documentation. \url{https://fastapi.tiangolo.com/}
+\bibitem{react} Meta Open Source. React---A JavaScript library for building user interfaces. \url{https://react.dev/}
+\bibitem{sklearn} Pedregosa, F., et al. Scikit-learn: Machine Learning in Python. JMLR 12:2825--2830 (2011).
+\bibitem{wfdb} Silva, I., et al. The PhysioNet/Computing in Cardiology Challenge 2013: Noninvasive Fetal ECG. Computers in Cardiology 40:137--140 (2013). (wfdb tooling ecosystem.)
+\bibitem{ieee1073} ISO/IEEE 11073 Family (overview of medical device communication; contextual for future interoperability work).
+\bibitem{hl7fhir} HL7 FHIR Specification (R4+). \url{https://www.hl7.org/fhir/} (reference for future hospital integration).
+\bibitem{neuromorphic} Indiveri, G., et al. Integration of nanoscale memristor synapses in neuromorphic computing architectures. Nanotechnology 24(38):384010 (2013).
+\bibitem{icu_ml} Johnson, A. E. W., et al. MIMIC-III, a freely accessible critical care database. Scientific Data 3:160035 (2016). (context for ICU ML, separate from this hardware build.)
+\end{thebibliography}
+
+\end{document}
